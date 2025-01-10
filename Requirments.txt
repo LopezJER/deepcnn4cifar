@@ -1,4 +1,9 @@
-tensorflow==2.18.0
-opencv-python==4.10.0.84
-matplotlib
-numpy
+# Core dependencies
+tensorflow==2.18.0             # For deep learning and preprocessing
+opencv-python==4.10.0.84       # For additional image processing tasks
+numpy                          # For numerical operations
+matplotlib                     # For data visualization
+
+# Optional dependencies for better performance or debugging
+tensorflow-datasets            # For handling datasets if needed
+tensorflow-estimator           # Sometimes required with TensorFlow

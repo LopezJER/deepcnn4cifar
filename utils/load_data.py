@@ -1,29 +1,6 @@
-# Load the CIFAR-10 training data
-train_data = datasets.CIFAR10(root='./data', train=True, download=True)
-
-# Calculate mean and std
-# as per Github discussions (paulkorir, 2018): https://github.com/facebookarchive/fb.resnet.torch/issues/180#issuecomment-433419706
-x = np.concatenate([np.asarray(train_data[i][0]) for i in range(len(train_data))])
-train_mean = np.mean(x, axis=(0, 1)) / 255.0
-train_std = np.std(x, axis=(0, 1)) / 255.0
-print("Mean:", train_mean)
-print("Std:", train_std)
-
-# Define transformations
-# Experiment with/tune augmentations here
-train_transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Resize((224, 224)),
-    transforms.RandomHorizontalFlip(),
-    transforms.ColorJitter(brightness=0.2, hue=0.1),
-    transforms.Normalize(mean=train_mean.tolist(), std=train_std.tolist())
-])
-
-val_test_transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Resize((224, 224)),
-    transforms.Normalize(mean=train_mean.tolist(), std=train_std.tolist())
-])
+from torchvision import datasets, transforms
+from torch.utils.data import DataLoader, random_split, Dataset
+import numpy as np
 
 class TransformDataset(Dataset):
     def __init__(self, dataset, transform=None):
@@ -39,22 +16,63 @@ class TransformDataset(Dataset):
             image = self.transform(image)
         return image, label
 
-# Load raw dataset without transforms first
-train_dataset_raw = datasets.CIFAR10(root='./data', train=True, transform=None, download=True)
+def get_cifar_dataloaders(include_test = False, test_only = False):
+    cifar_dataloader = {}
+    if not test_only:
+        train_data = datasets.CIFAR10(root='./data', train=True, download=True)
 
-# Split raw dataset
-val_split = 0.2
-train_size = int((1 - val_split) * len(train_dataset_raw))
-val_size = len(train_dataset_raw) - train_size
-train_subset_raw, val_subset_raw = random_split(train_dataset_raw, [train_size, val_size])
+        # Calculate mean and std
+        # as per Github discussions (paulkorir, 2018): https://github.com/facebookarchive/fb.resnet.torch/issues/180#issuecomment-433419706
+        x = np.concatenate([np.asarray(train_data[i][0]) for i in range(len(train_data))])
+        train_mean = np.mean(x, axis=(0, 1)) / 255.0
+        train_std = np.std(x, axis=(0, 1)) / 255.0
 
-# Create separate datasets with appropriate transforms
-train_data = TransformDataset(train_subset_raw, train_transform)
-val_data = TransformDataset(val_subset_raw, val_test_transform)
-test_dataset = datasets.CIFAR10(root='./data', train=False, transform=val_test_transform, download=True)
+        # Define transformations
+        # Experiment with/tune augmentations here
+        train_transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Resize((224, 224)),
+            transforms.RandomHorizontalFlip(),
+            transforms.ColorJitter(brightness=0.2, hue=0.1),
+            transforms.Normalize(mean=train_mean.tolist(), std=train_std.tolist())
+        ])
 
-# Create DataLoaders
-batch_size = 64
-train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
-val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
-test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+        val_test_transform = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Resize((224, 224)),
+            transforms.Normalize(mean=train_mean.tolist(), std=train_std.tolist())
+        ])
+
+
+        # Load raw dataset without transforms first
+        train_dataset_raw = datasets.CIFAR10(root='./data', train=True, transform=None, download=True)
+
+        # Split raw dataset
+        val_split = 0.2
+        train_size = int((1 - val_split) * len(train_dataset_raw))
+        val_size = len(train_dataset_raw) - train_size
+        train_subset_raw, val_subset_raw = random_split(train_dataset_raw, [train_size, val_size])
+
+        # Create separate datasets with appropriate transforms
+        train_data = TransformDataset(train_subset_raw, train_transform)
+        val_data = TransformDataset(val_subset_raw, val_test_transform)
+
+        # Create DataLoaders
+        batch_size = 64
+        train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
+        val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
+        cifar_dataloader['train'] = train_loader
+        cifar_dataloader['val'] = val_loader
+
+        if include_test:
+            test_dataset = datasets.CIFAR10(root='./data', train=False, transform=val_test_transform, download=True)
+            test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+            cifar_dataloader['test']  = test_loader
+
+        
+    else:
+        test_dataset = datasets.CIFAR10(root='./data', train=False, transform=val_test_transform, download=True)
+        test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+        cifar_dataloader['test'] = test_loader
+    print("Successfully preprocessed and split data.")
+    return cifar_dataloader

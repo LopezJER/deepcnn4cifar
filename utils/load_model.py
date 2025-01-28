@@ -103,13 +103,4 @@ def load_model():
             raise WeightTransferException(f"Weights transfer from {pretrained_weights_arch} to {arch} not supported!")
     return vgg_model
 
-    # # Transfer weights from VGG11 to VGG16
-    # print("Transferring weights from VGG11 to VGG16...")
-    # transfer_weights_from_state_dict(state_dict, model)
-
-
-    # # Loss function and optimizer
-    # criterion = nn.CrossEntropyLoss()
-    # optimizer = optim.SGD(model.parameters(), momentum=momentum, lr=learning_rate, weight_decay=weight_decay)
-    # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=2, factor=0.1, verbose=True)
 

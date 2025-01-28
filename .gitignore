@@ -1,1 +1,5 @@
 vgg_venv/
+models/
+outputs/
+data/
+*.pyc

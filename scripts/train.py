@@ -8,11 +8,18 @@ import time
 import os
 import matplotlib.pyplot as plt
 from core.model import VGG_Network
-from core.config import model_setup, hyperparams
-
+from core.config import model_setup, hyperparams, paths
+from utils.load_model import load_model, setup_device
+from utils.load_data import get_cifar_dataloaders
 
 # Function to train the model
-def train_model(model, train_loader, val_loader, criterion, optimizer, num_epochs, scheduler, patience=5):
+def train_model(model, train_loader, val_loader, hyps, device):
+
+    num_epochs = hyps['num_epochs']
+    optimizer = hyps['optimizer']
+    scheduler = hyps['scheduler']
+    patience = hyps['early_stopping_patience']
+    criterion = nn.CrossEntropyLoss()
     best_val_loss = float('inf')
     epochs_without_improvement = 0
     
@@ -79,8 +86,8 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
                 'optimizer_state_dict': optimizer.state_dict(),
                 'epoch': epoch,
                 'best_val_loss': best_val_loss
-            }, f'{model_setup['arch']}.pth')
-            print("Saved best model")
+            }, f'{paths['outputs_dir']}/{model_setup['arch']}_checkpoint.pth')
+            print(f"Saved best model to '{paths['outputs_dir']}/{model_setup['arch']}_checkpoint.pth'")
         else:
             epochs_without_improvement += 1
             if epochs_without_improvement >= patience:
@@ -89,20 +96,24 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, num_epoch
 
     return train_losses, val_losses, epoch_times
 
-# Example usage
-# Main function with verification
 def main():
-    # Model parameters
-
-
-
-
     # Train the model and capture losses
     print("Starting training of VGG16...")
-    train_losses, val_losses, epoch_times = train_model(vgg16_model, train_loader, val_loader, criterion, optimizer, num_epochs, scheduler)
 
+
+
+def get_hyperparams(model):
+    ### As per Simonyan and Zisserman's (2014)  paper:
+    optimizer = optim.SGD(model.parameters(), momentum=hyperparams['momentum'], lr=hyperparams['learning_rate'], weight_decay=hyperparams['weight_decay'])
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=2, factor=0.1, verbose=True)
+    
+    hyps = {key: value for key, value in hyperparams.items()}
+    hyps['optimizer'], hyps['scheduler'] = optimizer, scheduler
+    return hyps
+
+def visualize_losses(train_losses, val_losses):
     # Visualize train and validation loss
-    output_dir = "./outputs"
+    output_dir = paths['outputs']
     os.makedirs(output_dir, exist_ok=True)
     loss_plot_path = os.path.join(output_dir, "train_val_loss.png")
 
@@ -119,5 +130,15 @@ def main():
     print(f"Loss plot saved to: {loss_plot_path}")
 
 
+def main():
+    vgg_model = load_model()
+    dataloaders = get_cifar_dataloaders()
+    hyps = get_hyperparams(vgg_model)
+    device = setup_device()
+    train_loader, val_loader = dataloaders['train'], dataloaders['val']
+    train_losses, val_losses, _ = train_model(vgg_model, train_loader, val_loader, hyps, device)
+    visualize_losses(train_losses, val_losses)
+
 if __name__ == '__main__':
     main()
+

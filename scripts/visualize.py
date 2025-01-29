@@ -5,27 +5,86 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import cv2
-from torchvision import datasets, transforms
-from sklearn.metrics import roc_curve, auc, confusion_matrix
-from core.model import VGG_Network
-from utils.load_model import load_model
-from torch.utils.data import Dataset, DataLoader, random_split
+from sklearn.metrics import confusion_matrix
+from utils.load_data import get_cifar_dataloaders
+from utils.load_model import load_model, setup_device
+from core.gradcam import GradCAM
+from core.config import num_classes
+
+
+def visualize_image_transformations(dataloaders):
+    """
+    Visualizes image transformations including original, resized, and normalized images.
+
+    Parameters:
+    - dataloaders (dict): Dictionary of DataLoaders for 'train', 'val', and optionally 'test'.
+
+    Returns:
+    - Displays transformed images.
+    """
+    train_loader = dataloaders["train"]
+
+    # Get dataset mean and std from train_loader
+    train_data = (
+        train_loader.dataset.dataset
+    )  # Accessing the raw dataset inside TransformDataset
+    train_mean = train_data.transform.transforms[-1].mean
+    train_std = train_data.transform.transforms[-1].std
+
+    # Sample images from different classes
+    images_per_class = {}
+    classes = train_data.classes  # Extract class names from dataset
+    for image, label in train_loader.dataset:
+        if label not in images_per_class:
+            images_per_class[label] = (image, label)
+        if len(images_per_class) == num_classes:
+            break
+
+    # Create the figure and subplots
+    fig, axes = plt.subplots(
+        num_classes, 3, figsize=(12, 4 * num_classes), constrained_layout=True
+    )
+
+    for idx, (label, (image, _)) in enumerate(images_per_class.items()):
+        # Original image
+        image_original = np.asarray(image)
+
+        # Resized image
+        image_resized = image.permute(1, 2, 0).numpy()
+
+        # Normalized image
+        image_normalized = image.permute(1, 2, 0).numpy()
+        image_normalized_display = (
+            image_normalized * train_std + train_mean
+        )  # De-normalize for visualization
+        image_normalized_display = np.clip(image_normalized_display, 0, 1)
+
+        # Plot original
+        axes[idx, 0].imshow(image_original)
+        axes[idx, 0].set_title(f"Original: {classes[label]}", fontsize=12)
+        axes[idx, 0].axis("off")
+
+        # Plot resized
+        axes[idx, 1].imshow(image_resized)
+        axes[idx, 1].set_title("Resized", fontsize=12)
+        axes[idx, 1].axis("off")
+
+        # Plot normalized
+        axes[idx, 2].imshow(image_normalized_display)
+        axes[idx, 2].set_title("Normalized", fontsize=12)
+        axes[idx, 2].axis("off")
+
+    # Add an overall title to the figure
+    fig.suptitle(
+        "Visualization of Images: Original, Resized, and Normalized",
+        fontsize=18,
+        fontweight="bold",
+    )
+    plt.show()
 
 
 # Function to generate predictions and true labels
 def get_predictions(model, dataloader, device):
-    """
-    Get predictions and true labels for a dataset.
-
-    Parameters:
-        model: Trained model.
-        dataloader: DataLoader for the dataset.
-        device: Device to run the predictions on.
-
-    Returns:
-        true_labels: Numpy array of true labels.
-        predicted_labels: Numpy array of predicted labels.
-    """
     true_labels = []
     predicted_labels = []
 
@@ -42,14 +101,6 @@ def get_predictions(model, dataloader, device):
 
 # Function to visualize top mistakes
 def visualize_top_mistakes(cm, class_names, top_n=5):
-    """
-    Visualize the top N mistakes from the confusion matrix.
-
-    Parameters:
-        cm: Confusion matrix (numpy array).
-        class_names: List of class names.
-        top_n: Number of top mistakes to visualize.
-    """
     np.fill_diagonal(cm, 0)  # Ignore correct predictions
 
     mistakes = [
@@ -83,19 +134,8 @@ def visualize_mistakes_images_grouped_with_row_titles(
     class_names,
     images_per_category=5,
 ):
-    """
-    Visualize multiple misclassified images for each misclassification category with row-wise titles.
-
-    Parameters:
-        true_labels: Numpy array of true labels.
-        predicted_labels: Numpy array of predicted labels.
-        test_dataset: Dataset object to retrieve images.
-        top_mistakes: List of top misclassification pairs.
-        class_names: List of class names.
-        images_per_category: Number of images to display per misclassification pair.
-    """
     rows = len(top_mistakes)
-    cols = images_per_category + 1  # Add one column for the row titles
+    cols = images_per_category + 1
 
     plt.figure(figsize=(15, 3 * rows))
 
@@ -106,7 +146,6 @@ def visualize_mistakes_images_grouped_with_row_titles(
             (true_labels == true_class_idx) & (predicted_labels == predicted_class_idx)
         )[0]
 
-        # Add the row title
         plt.subplot(rows, cols, row_idx * cols + 1)
         plt.text(
             0.5,
@@ -134,120 +173,6 @@ def visualize_mistakes_images_grouped_with_row_titles(
     plt.suptitle("Misclassified Images by Category", fontsize=16, fontweight="bold")
     plt.tight_layout(rect=[0, 0, 1, 0.99])
     plt.show()
-
-
-if __name__ == "__main__":
-    # Define device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-    # Load test dataset
-    transform = transforms.Compose(
-        [
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.49139968, 0.48215841, 0.44653091],
-                std=[0.24703223, 0.24348513, 0.26158784],
-            ),
-        ]
-    )
-    test_dataset = datasets.CIFAR10(
-        root="./data", train=False, transform=transform, download=True
-    )
-    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
-
-    # Load model
-    model = VGG_Network(input_size=(3, 224, 224), num_classes=10, config="vgg16").to(
-        device
-    )
-    model = load_model(
-        model,
-        "/kaggle/input/session-2-vgg16-cifar/session2_vgg16_best_model.pth",
-        device,
-    )
-
-    # Get predictions and true labels
-    true_labels, predicted_labels = get_predictions(model, test_loader, device)
-
-    # Load evaluation data
-    evaluation_data = torch.load(
-        "/kaggle/input/vgg16-evaluation-data/evaluation_data.pth"
-    )
-    cm = evaluation_data["confusion_matrix"]
-    class_names = evaluation_data["class_names"]
-
-    # Visualize top mistakes
-    top_mistakes = visualize_top_mistakes(cm, class_names, top_n=5)
-
-    # Visualize grouped misclassified images
-    visualize_mistakes_images_grouped_with_row_titles(
-        true_labels, predicted_labels, test_dataset, top_mistakes, class_names
-    )
-
-
-def generate_vgg_architecture(architecture="vgg16"):
-    """
-    Generates a LaTeX-based visualization for VGG architectures (VGG16 or VGG11).
-
-    Parameters:
-        architecture (str): "vgg16" or "vgg11".
-    """
-    # Define LaTeX filename
-    tex_filename = f"custom_{architecture}.tex"
-    pdf_filename = f"custom_{architecture}.pdf"
-    output_dir = "./outputs"
-    os.makedirs(output_dir, exist_ok=True)
-
-    # LaTeX source code
-    tex_code = (
-        r"""
-    \documentclass[border=15pt, multi, tikz]{standalone}
-    \usepackage{import}
-    \subimport{PlotNeuralNet/layers/}{init}
-    \usetikzlibrary{positioning}
-
-    % Define Colors
-    \def\ConvColor{rgb:yellow,5;red,2.5;white,5}
-    \def\ConvReluColor{rgb:yellow,5;red,5;white,5}
-    \def\PoolColor{rgb:red,1;black,0.3}
-    \def\FcColor{rgb:blue,5;red,2.5;white,5}
-    \def\SoftmaxColor{rgb:magenta,5;black,7}
-
-    \begin{document}
-    \begin{tikzpicture}
-    """
-        + (
-            """
-    % VGG16 Architecture
-    \pic[shift={(0,0,0)}] at (0,0,0) {Box={name=input,caption=Input,xlabel={{"3",""}},ylabel=224,zlabel=224,fill=\ConvColor,height=40,width=1,depth=40}};
-    \pic[shift={(1.5,0,0)}] at (input-east) {RightBandedBox={name=conv1,caption=Conv1,xlabel={{"64","64"}},ylabel=224,zlabel=224,fill=\ConvColor,bandfill=\ConvReluColor,height=40,width={2,2},depth=40}};
-    \pic[shift={(4,0,0)}] at (conv1-east) {Box={name=fc,caption=FC,xlabel={{"4096",""}},fill=\FcColor,height=3,width=3,depth=80}};
-    """
-            if architecture == "vgg16"
-            else """
-    % VGG11 Architecture
-    \pic[shift={(0,0,0)}] at (0,0,0) {Box={name=input,caption=Input,xlabel={{"3",""}},ylabel=224,zlabel=224,fill=\ConvColor,height=40,width=1,depth=40}};
-    \pic[shift={(1.5,0,0)}] at (input-east) {Box={name=conv1,caption=Conv1,xlabel={{"64",""}},ylabel=224,zlabel=224,fill=\ConvColor,height=40,width=2,depth=40}};
-    \pic[shift={(4,0,0)}] at (conv1-east) {Box={name=fc,caption=FC,xlabel={{"4096",""}},fill=\FcColor,height=3,width=3,depth=80}};
-    """
-        )
-        + """
-    \end{tikzpicture}
-    \end{document}
-    """
-    )
-
-    # Write the .tex file
-    with open(tex_filename, "w") as f:
-        f.write(tex_code)
-
-    # Compile the .tex file to .pdf
-    try:
-        subprocess.run(["pdflatex", tex_filename], check=True)
-        os.rename(pdf_filename, os.path.join(output_dir, pdf_filename))
-        print(f"{architecture.upper()} architecture PDF saved to {output_dir}")
-    except subprocess.CalledProcessError:
-        print(f"Error compiling {tex_filename}")
 
 
 # Visualize Filters
@@ -303,79 +228,76 @@ def visualize_heatmap(img, cam, alpha=0.5):
     plt.show()
 
 
-# Grad-CAM Implementation
-class GradCAM:
-    def __init__(self, model, target_layer):
-        self.model = model
-        self.target_layer = target_layer
-        self.gradients = None
-        self.activations = None
-        self._register_hooks()
+def visualize_with_gradcam(model, test_dataset, target_class, target_layer, device):
+    grad_cam = GradCAM(model, target_layer)
 
-    def _register_hooks(self):
-        for name, module in self.model.named_modules():
-            if name == self.target_layer:
-                module.register_forward_hook(self._save_activations)
-                module.register_backward_hook(self._save_gradients)
+    # Select an image from the dataset
+    img, _ = test_dataset[0]
+    input_image = img.unsqueeze(0).to(device)  # Add batch dimension and move to device
 
-    def _save_activations(self, module, input, output):
-        self.activations = output
+    # Generate CAM
+    cam = grad_cam.generate_cam(input_image, target_class)
 
-    def _save_gradients(self, module, grad_input, grad_output):
-        self.gradients = grad_output[0]
-
-    def generate_cam(self, input_image, target_class):
-        self.model.zero_grad()
-        output = self.model(input_image)
-        output[:, target_class].backward()
-
-        weights = torch.mean(self.gradients, dim=(2, 3))
-        cam = torch.zeros(self.activations.shape[2:], dtype=torch.float32)
-        for i, w in enumerate(weights[0]):
-            cam += w * self.activations[0, i, :, :]
-        cam = torch.clamp(cam, min=0).cpu().numpy()
-        return (cam - cam.min()) / (cam.max() - cam.min())
+    # Visualize heatmap
+    visualize_heatmap(img.permute(1, 2, 0).numpy(), cam, alpha=0.5)
 
 
+def generate_vgg_architecture(architecture="vgg11"):
+    """
+    Compiles the LaTeX file for the given VGG architecture (VGG11 or VGG16) and generates a PDF.
+
+    Parameters:
+        architecture (str): "vgg16" or "vgg11".
+    """
+    # Define paths for LaTeX source and output directory
+    tex_file = (
+        f"./core/assets/custom_{architecture}.tex"  # Access LaTeX from assets folder
+    )
+    output_dir = "./outputs"  # Where the PDFs will be saved
+    os.makedirs(output_dir, exist_ok=True)  # Ensure output directory exists
+
+    pdf_filename = os.path.join(output_dir, f"{architecture}_architecture.pdf")
+
+    # Check if LaTeX file exists
+    if not os.path.isfile(tex_file):
+        print(f"Error: {tex_file} not found!")
+        return
+
+    # Compile the LaTeX file into a PDF using pdflatex
+    try:
+        subprocess.run(
+            ["pdflatex", "-output-directory", output_dir, tex_file], check=True
+        )
+        print(f"PDF generated successfully: {pdf_filename}")
+    except subprocess.CalledProcessError as e:
+        print(f"Error compiling LaTeX file {tex_file}: {e}")
+
+
+# Example usage
 if __name__ == "__main__":
-    # Define device
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    # Load device
+    device = setup_device()
 
-    # Load test dataset
-    transform = transforms.Compose(
-        [
-            transforms.Resize((224, 224)),
-            transforms.ToTensor(),
-            transforms.Normalize(
-                mean=[0.49139968, 0.48215841, 0.44653091],
-                std=[0.24703223, 0.24348513, 0.26158784],
-            ),
-        ]
-    )
-    test_dataset = datasets.CIFAR10(
-        root="./data", train=False, transform=transform, download=True
-    )
-    test_loader = DataLoader(test_dataset, batch_size=64, shuffle=False)
+    # Load datasets
+    dataloaders = get_cifar_dataloaders(include_test=True)
+
+    # Run Visualization
+    visualize_image_transformations(dataloaders)
+
+    test_loader = dataloaders["test"]
+    test_dataset = test_loader.dataset
 
     # Load model
-    model = VGG_Network(input_size=(3, 224, 224), num_classes=10, config="vgg16").to(
-        device
-    )
-    model = load_model(
-        model,
-        "/kaggle/input/session-2-vgg16-cifar/session2_vgg16_best_model.pth",
-        device,
-    )
+    model = load_model()
+    model.to(device)
+    model.eval()
 
-    # Get predictions and true labels
+    # Generate predictions
     true_labels, predicted_labels = get_predictions(model, test_loader, device)
 
-    # Load evaluation data
-    evaluation_data = torch.load(
-        "/kaggle/input/vgg16-evaluation-data/evaluation_data.pth"
-    )
-    cm = evaluation_data["confusion_matrix"]
-    class_names = evaluation_data["class_names"]
+    # Generate confusion matrix
+    cm = confusion_matrix(true_labels, predicted_labels)
+    class_names = test_dataset.classes
 
     # Visualize top mistakes
     top_mistakes = visualize_top_mistakes(cm, class_names, top_n=5)
@@ -384,6 +306,11 @@ if __name__ == "__main__":
     visualize_mistakes_images_grouped_with_row_titles(
         true_labels, predicted_labels, test_dataset, top_mistakes, class_names
     )
-# Example usage
-generate_vgg_architecture("vgg16")
-generate_vgg_architecture("vgg11")
+
+    # Visualize GradCAM
+    target_layer = "conv2d_block3.2"  # Example target layer
+    target_class = 5  # Example target class
+    visualize_with_gradcam(model, test_dataset, target_class, target_layer, device)
+
+    generate_vgg_architecture("vgg16")
+    generate_vgg_architecture("vgg11")

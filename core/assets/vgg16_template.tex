@@ -1,0 +1,87 @@
+%%writefile custom_vgg16.tex
+\documentclass[border=15pt, multi, tikz]{standalone}
+\usepackage{import}
+\subimport{PlotNeuralNet/layers/}{init} % Ensure this points to the correct path
+\usetikzlibrary{positioning}
+
+% Define Colors
+\def\ConvColor{rgb:yellow,5;red,2.5;white,5}
+\def\ConvReluColor{rgb:yellow,5;red,5;white,5}
+\def\PoolColor{rgb:red,1;black,0.3}
+\def\FcColor{rgb:blue,5;red,2.5;white,5}
+\def\FcReluColor{rgb:blue,5;red,5;white,4}
+\def\SoftmaxColor{rgb:magenta,5;black,7}
+
+\begin{document}
+\begin{tikzpicture}
+
+% Define connection style
+\tikzstyle{connection}=[ultra thick, draw=black!50, opacity=0.7, arrows={-Latex}]
+
+% Input Layer
+\pic[shift={(0,0,0)}] at (0,0,0) 
+    {Box={name=input,caption=Input,xlabel={{"3",""}},ylabel=224,zlabel=224,fill=\ConvColor,height=40,width=1,depth=40}};
+
+% Conv1 Block
+\pic[shift={(1.5,0,0)}] at (input-east) 
+    {RightBandedBox={name=conv1,caption=Conv1,xlabel={{"64","64"}},ylabel=224,zlabel=224,fill=\ConvColor,bandfill=\ConvReluColor,height=40,width={2,2},depth=40}};
+\pic[shift={(1,-1,0)}] at (conv1-east) 
+    {Box={name=pool1,caption=Pool1 \\ MaxPool,fill=\PoolColor,height=35,width=1,depth=35}};
+
+% Conv2 Block
+\pic[shift={(1.5,0,0)}] at (pool1-east) 
+    {RightBandedBox={name=conv2,caption=Conv2,xlabel={{"128","128"}},ylabel=112,zlabel=112,fill=\ConvColor,bandfill=\ConvReluColor,height=35,width={3,3},depth=35}};
+\pic[shift={(1,-1,0)}] at (conv2-east) 
+    {Box={name=pool2,caption=Pool2 \\ MaxPool,fill=\PoolColor,height=30,width=1,depth=30}};
+
+% Conv3 Block
+\pic[shift={(2,0,0)}] at (pool2-east) 
+    {RightBandedBox={name=conv3,caption=Conv3,xlabel={{"256","256","256"}},ylabel=56,zlabel=56,fill=\ConvColor,bandfill=\ConvReluColor,height=30,width={4,4,4},depth=30}};
+\pic[shift={(1,-1,0)}] at (conv3-east) 
+    {Box={name=pool3,caption=Pool3 \\ MaxPool,fill=\PoolColor,height=23,width=1,depth=23}};
+
+% Conv4 Block
+\pic[shift={(2,0,0)}] at (pool3-east) 
+    {RightBandedBox={name=conv4,caption=Conv4,xlabel={{"512","512","512"}},ylabel=28,zlabel=28,fill=\ConvColor,bandfill=\ConvReluColor,height=23,width={7,7,7},depth=23}};
+\pic[shift={(1,-1,0)}] at (conv4-east) 
+    {Box={name=pool4,caption=Pool4 \\ MaxPool,fill=\PoolColor,height=15,width=1,depth=15}};
+
+% Conv5 Block
+\pic[shift={(2,0,0)}] at (pool4-east) 
+    {RightBandedBox={name=conv5,caption=Conv5,xlabel={{"512","512","512"}},ylabel=14,zlabel=14,fill=\ConvColor,bandfill=\ConvReluColor,height=15,width={7,7,7},depth=15}};
+\pic[shift={(1,-1,0)}] at (conv5-east) 
+    {Box={name=pool5,caption=Pool5 \\ MaxPool,fill=\PoolColor,height=10,width=1,depth=10}};
+
+% Fully Connected Layers
+\pic[shift={(4,0,0)}] at (pool5-east) 
+    {Box={name=fc1,caption=FC1,xlabel={{"4096",""}},fill=\FcColor,height=3,width=3,depth=80}};
+\pic[shift={(1,0,0)}] at (fc1-east) 
+    {Box={name=fc2,caption=FC2,xlabel={{"4096",""}},fill=\FcColor,height=3,width=3,depth=80}};
+\pic[shift={(1,0,0)}] at (fc2-east) 
+    {Box={name=fc3,caption=FC3+Softmax,xlabel={{"1000",""}},fill=\SoftmaxColor,height=3,width=3,depth=20}};
+
+% Draw Connections
+\draw [connection] (input-east) -- (conv1-west);
+\draw [connection] (conv1-east) -- (pool1-west);
+\draw [connection] (pool1-east) -- (conv2-west);
+\draw [connection] (conv2-east) -- (pool2-west);
+\draw [connection] (pool2-east) -- (conv3-west);
+\draw [connection] (conv3-east) -- (pool3-west);
+\draw [connection] (pool3-east) -- (conv4-west);
+\draw [connection] (conv4-east) -- (pool4-west);
+\draw [connection] (pool4-east) -- (conv5-west);
+\draw [connection] (conv5-east) -- (pool5-west);
+\draw [connection] (pool5-east) -- (fc1-west);
+\draw [connection] (fc1-east) -- (fc2-west);
+\draw [connection] (fc2-east) -- (fc3-west);
+
+% Legend
+\node[draw, align=left, anchor=north west] at (-5,-10) { % Adjusted position to (-5,-10)
+    \textbf{Legend:}\\
+    \textcolor{yellow}{\textbf{Conv/ReLU}}: Convolutional + ReLU layers\\
+    \textcolor{red}{\textbf{MaxPool}}: Max Pooling layers\\
+    \textcolor{blue}{\textbf{Fully Connected}}: Dense (FC) layers\\
+    \textcolor{magenta}{\textbf{Softmax}}: Final classification layer
+};
+\end{tikzpicture}
+\end{document}

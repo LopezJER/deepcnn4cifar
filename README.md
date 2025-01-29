@@ -45,7 +45,7 @@ We also include confusion matrices for evaluating model performance:
 
 ![alt text](./assets/image-1.png)
 
-You can easily adjust the depth and parameters of the vggs in core/model.py.
+You can easily adjust the depth and parameters of the vggs in src/core/model.py.
 Utilize scripts/visualize.py to generate interactive charts and matrices.
 Track and compare model accuracy and loss metrics with detailed graphs.
 
@@ -60,13 +60,13 @@ Track and compare model accuracy and loss metrics with detailed graphs.
    `pdflatex --version`
 
 3. Train a model on CIFAR-10 using:
-   `python scripts/train.py`
+   `python -m src.scripts.train.py`
 
 4. Evaluate the Model
-   `python scripts/evaluate.py`
+   `python -m src.scripts.evaluate.py`
 
-5. Visualize Results
-   `python scripts/visualize.py`
+5. Visualize Results (with GradCam)
+   `python -m src.scripts/visualize.py --image.png`
 
 References:
 CIFAR-10 Dataset: A dataset of 60,000 32x32 color images in 10 classes.

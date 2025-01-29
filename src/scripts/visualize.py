@@ -5,11 +5,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
 import cv2
+import argparse
 from sklearn.metrics import confusion_matrix
 from src.utils.load_data import get_cifar_dataloaders
 from src.utils.load_model import load_model, setup_device
 from src.core.gradcam import GradCAM
 from src.core.config import num_classes
+
 
 def visualize_image_transformations(dataloaders):
     """
@@ -221,24 +223,90 @@ def visualize_heatmap(img, cam, alpha=0.5):
     heatmap = cv2.applyColorMap(np.uint8(255 * cam_resized), cv2.COLORMAP_JET)
     heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
     overlay = cv2.addWeighted(np.uint8(255 * img), 1 - alpha, heatmap, alpha, 0)
+
     plt.imshow(overlay)
     plt.axis("off")
-    plt.title("Heatmap Visualization")
+    plt.title("Grad-CAM Heatmap")
     plt.show()
 
 
-def visualize_with_gradcam(model, test_dataset, target_class, target_layer, device):
+# Grad-CAM Visualization for a Single Image
+def visualize_with_gradcam(model, img_path, target_class, target_layer, device):
+    """
+    Generate and visualize Grad-CAM heatmap for a specific image.
+
+    Parameters:
+        model: The trained model.
+        img_path: Path to the input image.
+        target_class: Class index to generate Grad-CAM for.
+        target_layer: Target layer to visualize Grad-CAM.
+        device: Device to run the computations (CPU or GPU).
+    """
     grad_cam = GradCAM(model, target_layer)
 
-    # Select an image from the dataset
-    img, _ = test_dataset[0]
-    input_image = img.unsqueeze(0).to(device)  # Add batch dimension and move to device
+    # Load and preprocess the image
+    img = cv2.imread(img_path)
+    if img is None:
+        print(
+            f"Error: Unable to read image at '{img_path}'. Please check the file path."
+        )
+        return
+
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    input_img = (
+        cv2.resize(img, (224, 224)).astype(np.float32) / 255.0
+    )  # Resize and normalize
+    input_tensor = (
+        torch.tensor(input_img).permute(2, 0, 1).unsqueeze(0).to(device)
+    )  # HWC -> CHW -> NCHW
 
     # Generate CAM
-    cam = grad_cam.generate_cam(input_image, target_class)
+    cam = grad_cam.generate_cam(input_tensor, target_class)
 
     # Visualize heatmap
-    visualize_heatmap(img.permute(1, 2, 0).numpy(), cam, alpha=0.5)
+    visualize_heatmap(img, cam, alpha=0.5)
+
+
+# Grad-CAM Visualization for Multiple Images in Dataset
+def visualize_dataset_with_gradcam(
+    model, dataset, target_class, target_layer, device, num_samples=5
+):
+    """
+    Visualize Grad-CAM for multiple images from the dataset.
+
+    Parameters:
+        model: The trained model.
+        dataset: The dataset to sample images from.
+        target_class: Class index to generate Grad-CAM for.
+        target_layer: Target layer to visualize Grad-CAM.
+        device: Device to run the computations (CPU or GPU).
+        num_samples: Number of images to visualize from the dataset.
+    """
+    grad_cam = GradCAM(model, target_layer)
+
+    fig, axes = plt.subplots(num_samples, 1, figsize=(6, num_samples * 3))
+
+    for idx in range(num_samples):
+        img, label = dataset[idx]  # Get an image from the dataset
+        input_tensor = img.unsqueeze(0).to(device)  # Convert to batch format
+
+        # Generate CAM
+        cam = grad_cam.generate_cam(input_tensor, target_class)
+
+        # Convert image to numpy for visualization
+        img_np = img.permute(1, 2, 0).numpy()
+
+        # Overlay heatmap and display
+        cam_resized = cv2.resize(cam, (img_np.shape[1], img_np.shape[0]))
+        heatmap = cv2.applyColorMap(np.uint8(255 * cam_resized), cv2.COLORMAP_JET)
+        heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
+        overlay = cv2.addWeighted(np.uint8(255 * img_np), 1 - 0.5, heatmap, 0.5, 0)
+
+        axes[idx].imshow(overlay)
+        axes[idx].axis("off")
+        axes[idx].set_title(f"Sample {idx+1} - True Class: {label}")
+
+    plt.show()
 
 
 def generate_vgg_architecture(architecture="vgg11"):
@@ -272,24 +340,64 @@ def generate_vgg_architecture(architecture="vgg11"):
         print(f"Error compiling LaTeX file {tex_file}: {e}")
 
 
-# Example usage
-if __name__ == "__main__":
+def main():
+    # Argument Parser
+    parser = argparse.ArgumentParser(
+        description="Visualize Grad-CAM heatmaps for a single image or dataset."
+    )
+    parser.add_argument(
+        "--image",
+        type=str,
+        help="Path to the input image (e.g., --image path/to/image.png)",
+    )
+    parser.add_argument(
+        "--dataset",
+        action="store_true",
+        help="Run Grad-CAM on dataset images instead of a single image",
+    )
+    parser.add_argument(
+        "--layer",
+        type=str,
+        default="conv2d_block3.2",  # Default layer set
+        help="Target layer for Grad-CAM (default: conv2d_block3.2)",
+    )
+    parser.add_argument(
+        "--target_class",
+        type=int,
+        default=5,  # Default target class set
+        help="Target class index (default: 5)",
+    )
+    parser.add_argument(
+        "--num_samples",
+        type=int,
+        default=5,
+        help="Number of dataset samples to visualize (default: 5)",
+    )
+
+    args = parser.parse_args()
+
     # Load device
     device = setup_device()
-
-    # Load datasets
-    dataloaders = get_cifar_dataloaders(include_test=True)
-
-    # Run Visualization
-    visualize_image_transformations(dataloaders)
-
-    test_loader = dataloaders["test"]
-    test_dataset = test_loader.dataset
 
     # Load model
     model = load_model()
     model.to(device)
     model.eval()
+
+    # Run Grad-CAM for a Single Image (if specified)
+    if args.image:
+        print(f"Running Grad-CAM for image: {args.image}")
+        visualize_with_gradcam(model, args.image, args.target_class, args.layer, device)
+        return  # Exit after single image Grad-CAM to avoid unnecessary computations
+
+    # If dataset Grad-CAM is requested, proceed with dataset processing
+    dataloaders = get_cifar_dataloaders(include_test=True)
+
+    # Run Visualization for Dataset Transformations
+    visualize_image_transformations(dataloaders)
+
+    test_loader = dataloaders["test"]
+    test_dataset = test_loader.dataset
 
     # Generate predictions
     true_labels, predicted_labels = get_predictions(model, test_loader, device)
@@ -306,10 +414,17 @@ if __name__ == "__main__":
         true_labels, predicted_labels, test_dataset, top_mistakes, class_names
     )
 
-    # Visualize GradCAM
-    target_layer = "conv2d_block3.2"  # Example target layer
-    target_class = 5  # Example target class
-    visualize_with_gradcam(model, test_dataset, target_class, target_layer, device)
+    # Run Grad-CAM for Dataset Images
+    if args.dataset:
+        print(f"Running Grad-CAM on {args.num_samples} dataset images...")
+        visualize_dataset_with_gradcam(
+            model, test_dataset, args.target_class, args.layer, device, args.num_samples
+        )
 
+    # Generate Architecture Visualizations
     generate_vgg_architecture("vgg16")
     generate_vgg_architecture("vgg11")
+
+
+if __name__ == "__main__":
+    main()

@@ -12,18 +12,26 @@ _VGG16 Architecture:_
 
 ```
 deepcnn4cifar/
-├── core/
-│   ├── config.py             # Configuration settings
-│   ├── model.py              # Model definitions
-├── scripts/
-│   ├── train.py              # Training scripts
-│   ├── evaluate.py           # Evaluation scripts
-│   ├── visualize.py          # Visualization scripts
-├── utils/
-│   ├── load_data.py          # Data loading utilities
-│   ├── load_model.py         # Pre-trained model utilities
-├── data_preprocessing.ipynb  # Data exploration and preprocessing
-├── README.md                 # This file
+├── assets/
+│   ├── PlotNeuralNet/         # LaTeX resources for neural network visualization
+│   ├── vgg11_template.tex     # LaTeX template for VGG11 architecture
+│   ├── vgg16_template.tex     # LaTeX template for VGG16 architecture
+├── src/
+│   ├── core/                  # Core model and configuration files
+│   │   ├── config.py          # Configuration settings
+│   │   ├── model.py           # Model definitions
+│   │   ├── gradcam.py         # Implementation of Grad-CAM
+│   ├── scripts/               # Main scripts for training, evaluation, and visualization
+│   │   ├── train.py           # Training script
+│   │   ├── evaluate.py        # Evaluation script
+│   │   ├── visualize.py       # Visualization script
+│   ├── utils/                 # Utility scripts for loading data and models
+│       ├── load_data.py       # Data loading utilities
+│       ├── load_model.py      # Pre-trained model utilities
+├── tests/                     # Unit tests for the project
+├── .gitmodules                # Git submodules configuration
+├── .gitignore                 # Git ignore rules
+├── README.md                  # This file
 ```
 
 🚀 **Features**
@@ -46,7 +54,6 @@ Track and compare model accuracy and loss metrics with detailed graphs.
 1. Clone the Repository
    `git clone https://github.com/yourusername/deepcnn4cifar.git`
    `cd deepcnn4cifar`
-   
 2. Install Dependencies
    `pip install -r requirements.txt`
 

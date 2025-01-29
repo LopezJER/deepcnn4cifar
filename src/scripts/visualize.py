@@ -6,11 +6,10 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import cv2
 from sklearn.metrics import confusion_matrix
-from utils.load_data import get_cifar_dataloaders
-from utils.load_model import load_model, setup_device
-from core.gradcam import GradCAM
-from core.config import num_classes
-
+from src.utils.load_data import get_cifar_dataloaders
+from src.utils.load_model import load_model, setup_device
+from src.core.gradcam import GradCAM
+from src.core.config import num_classes
 
 def visualize_image_transformations(dataloaders):
     """

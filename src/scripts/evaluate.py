@@ -9,10 +9,10 @@ from sklearn.preprocessing import label_binarize
 import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
-from core.model import VGG_Network
-from core.config import class_names
-from utils.load_model import load_model
-from utils.load_data import get_dataloader
+from src.core.model import VGG_Network
+from src.core.config import class_names
+from src.utils.load_model import load_model
+from src.utils.load_data import get_dataloader
 
 
 # Evaluate the model

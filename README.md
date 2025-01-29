@@ -44,9 +44,9 @@ Track and compare model accuracy and loss metrics with detailed graphs.
 **How To Use:**
 
 1. Clone the Repository
-   ````git clone https://github.com/yourusername/deepcnn4cifar.git
-   cd deepcnn4cifar```
-   ````
+   `git clone https://github.com/yourusername/deepcnn4cifar.git`
+   `cd deepcnn4cifar`
+   
 2. Install Dependencies
    `pip install -r requirements.txt`
 

@@ -11,9 +11,80 @@ import os
 import seaborn as sns
 import matplotlib.pyplot as plt
 from src.core.model import VGG_Network
-from src.core.config import class_names
+from torchvision import datasets, transforms
+from src.core.config import model_setup, hyperparams, paths, debug, class_names
 from src.utils.load_model import load_model
-from src.utils.load_data import get_dataloader
+from src.utils.load_data import get_cifar_dataloaders
+from torch.utils.data import DataLoader
+
+
+class DebugDataset(torch.utils.data.Dataset):
+    """Custom dataset to retain transforms and attributes when using a subset."""
+
+    def __init__(self, original_dataset, subset_data):
+        self.original_dataset = original_dataset  # Keep reference to original dataset
+        self.data = subset_data  # Store the reduced subset
+        self.transform = getattr(original_dataset, "transform", None)  # Keep transform
+        self.classes = getattr(original_dataset, "classes", None)  # Retain class names
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        image, label = self.data[idx]
+
+        # Convert Tensor to PIL Image if needed
+        if isinstance(image, torch.Tensor):
+            image = transforms.ToPILImage()(image)
+
+        if self.transform:
+            image = self.transform(image)  # Apply original dataset's transform
+
+        return image, label
+
+
+def get_debug_dataloaders(train_loader=None, val_loader=None, test_loader=None):
+    """Extracts a smaller subset of the dataset for debugging and retains transformations."""
+
+    def extract_subset(loader, num_images):
+        dataset = loader.dataset
+        subset_data = []
+        for images, labels in loader:
+            subset_data.extend(zip(images, labels))
+            if len(subset_data) >= num_images:
+                break
+        return subset_data[:num_images], dataset  # Return dataset for transform
+
+    print(
+        f"Debug mode: Using {debug['train_size'] + debug['val_size'] + debug['test_size']} images and {debug['num_epochs']} epochs"
+    )
+
+    if train_loader is not None:
+        train_subset, train_dataset = extract_subset(train_loader, debug["train_size"])
+        train_loader = DataLoader(
+            DebugDataset(train_dataset, train_subset),
+            batch_size=debug["batch_size"],
+            shuffle=True,
+        )
+
+    if val_loader is not None:
+        val_subset, val_dataset = extract_subset(val_loader, debug["val_size"])
+        val_loader = DataLoader(
+            DebugDataset(val_dataset, val_subset),
+            batch_size=debug["batch_size"],
+            shuffle=False,
+        )
+
+    if test_loader is not None:
+        test_subset, test_dataset = extract_subset(test_loader, debug["test_size"])
+        test_loader = DataLoader(
+            DebugDataset(test_dataset, test_subset),
+            batch_size=debug["batch_size"],
+            shuffle=False,
+        )
+        return (test_loader,)  # Ensure single value return
+
+    return None
 
 
 # Evaluate the model
@@ -136,21 +207,28 @@ if __name__ == "__main__":
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Using device: {device}")
 
-        model = VGG_Network(
-            input_size=(3, 224, 224), num_classes=10, config="vgg16"
-        ).to(device)
-
-        model_path = "outputs/vgg16.pth"
+        model_path = os.path.join(
+            paths["outputs_dir"], f"{model_setup['arch']}_checkpoint.pth"
+        )
         assert os.path.exists(model_path), f"Model file not found: {model_path}"
 
-        model = load_model(model, model_path)
+        model = load_model()
 
         # Load test data
-        test_loader = get_dataloader("data/test", batch_size=64, train=False)
+        test_loader = get_cifar_dataloaders(include_test=True, test_only=True)
         assert test_loader is not None, "Test DataLoader is None."
 
+        # **Apply Debug Mode if Enabled**
+        if debug["on"]:
+            print("Debug mode enabled: Using a smaller test dataset.")
+            (test_loader["test"],) = get_debug_dataloaders(
+                test_loader=test_loader["test"]
+            )
+
         # Evaluate model
-        evaluation_results = evaluate_model(model, test_loader, device, num_classes=10)
+        evaluation_results = evaluate_model(
+            model, test_loader["test"], device, num_classes=model_setup["num_classes"]
+        )
         if evaluation_results:
             accuracy, loss, precision, recall, f1, cm, labels_oh, probs = (
                 evaluation_results

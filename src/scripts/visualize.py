@@ -6,62 +6,85 @@ import matplotlib.pyplot as plt
 import cv2
 import argparse
 from sklearn.metrics import confusion_matrix
+from torchvision import datasets, transforms
+from PIL import Image
 from src.utils.load_data import get_cifar_dataloaders
 from src.utils.load_model import load_model, setup_device
 from src.core.gradcam import GradCAM
-from src.core.config import num_classes
+from src.core.config import model_setup, debug, class_names
+from src.scripts.evaluate import get_debug_dataloaders  # Import debug function
 
 
-def visualize_image_transformations(dataloaders):
+num_classes = model_setup["num_classes"]
+
+
+def visualize_image_transformations():
     """
-    Visualizes image transformations including original, resized, and normalized images.
-
-    Parameters:
-    - dataloaders (dict): Dictionary of DataLoaders for 'train', 'val', and optionally 'test'.
-
-    Returns:
-    - Displays transformed images.
+    Visualizes CIFAR-10 images before and after transformations.
     """
-    assert isinstance(dataloaders, dict), "Expected dataloaders to be a dictionary"
-    assert "train" in dataloaders, "Dataloader dictionary must contain 'train' key"
-
     try:
-        train_loader = dataloaders["train"]
-        train_data = train_loader.dataset.dataset
-        train_mean = train_data.transform.transforms[-1].mean
-        train_std = train_data.transform.transforms[-1].std
+        # Load original CIFAR-10 dataset (without transforms)
+        original_dataset = datasets.CIFAR10(root="./data", train=True, download=True)
+
+        # Define transformations (same as used in training)
+        transform = transforms.Compose(
+            [
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    mean=[0.4914, 0.4822, 0.4465], std=[0.2470, 0.2435, 0.2616]
+                ),
+            ]
+        )
+
+        # Get class names
+        class_names = original_dataset.classes
+
+        # Select one image per class
         images_per_class = {}
-        classes = train_data.classes
-        for image, label in train_loader.dataset:
+        for i in range(len(original_dataset)):
+            image, label = original_dataset[i]
             if label not in images_per_class:
-                images_per_class[label] = (image, label)
-            if len(images_per_class) == num_classes:
+                images_per_class[label] = image
+            if len(images_per_class) == len(class_names):
                 break
 
         fig, axes = plt.subplots(
-            num_classes, 3, figsize=(12, 4 * num_classes), constrained_layout=True
+            len(class_names),
+            3,
+            figsize=(12, 4 * len(class_names)),
+            constrained_layout=True,
         )
-        for idx, (label, (image, _)) in enumerate(images_per_class.items()):
-            image_original = np.asarray(image)
-            image_resized = image.permute(1, 2, 0).numpy()
+
+        for idx, (label, image) in enumerate(images_per_class.items()):
+            # Apply transformation
+            transformed_image = transform(image)
+
+            # Convert images to display format (H, W, C)
+            image_resized = transformed_image.permute(1, 2, 0).numpy()
             image_normalized_display = np.clip(
-                image_resized * train_std + train_mean, 0, 1
-            )
-            axes[idx, 0].imshow(image_original)
-            axes[idx, 0].set_title(f"Original: {classes[label]}", fontsize=12)
+                image_resized * 0.5 + 0.5, 0, 1
+            )  # Convert normalized image back
+
+            axes[idx, 0].imshow(image)
+            axes[idx, 0].set_title(f"Original: {class_names[label]}", fontsize=12)
             axes[idx, 0].axis("off")
+
             axes[idx, 1].imshow(image_resized)
             axes[idx, 1].set_title("Resized", fontsize=12)
             axes[idx, 1].axis("off")
+
             axes[idx, 2].imshow(image_normalized_display)
             axes[idx, 2].set_title("Normalized", fontsize=12)
             axes[idx, 2].axis("off")
+
         fig.suptitle(
-            "Visualization of Images: Original, Resized, and Normalized",
+            "CIFAR-10 Transformations: Original, Resized, and Normalized",
             fontsize=18,
             fontweight="bold",
         )
         plt.show()
+
     except Exception as e:
         print(f"Error in visualize_image_transformations: {e}")
 
@@ -380,8 +403,8 @@ def main():
         parser.add_argument(
             "--layer",
             type=str,
-            default="conv2d_block3.2",
-            help="Target layer for Grad-CAM (default: conv2d_block3.2)",
+            default="features.10",
+            help="Target layer for Grad-CAM (default: features.10)",
         )
         parser.add_argument(
             "--target_class",
@@ -423,13 +446,20 @@ def main():
         try:
             dataloaders = get_cifar_dataloaders(include_test=True)
             assert "test" in dataloaders, "Test dataloader is missing."
+
+            # Apply debug mode if enabled
+            if debug["on"]:
+                print("Debug mode enabled: Using a smaller test dataset.")
+                dataloaders["test"] = get_debug_dataloaders(
+                    test_loader=dataloaders["test"]
+                )[0]
         except Exception as e:
             print(f"Error loading dataset: {e}")
             return
 
         # Run Visualization for Dataset Transformations
         try:
-            visualize_image_transformations(dataloaders)
+            visualize_image_transformations()
         except Exception as e:
             print(f"Error in visualize_image_transformations: {e}")
 
@@ -438,7 +468,9 @@ def main():
 
         # Generate predictions
         try:
-            true_labels, predicted_labels = get_predictions(model, test_loader, device)
+            true_labels, predicted_labels = get_predictions(
+                model, dataloaders["test"], device
+            )
         except Exception as e:
             print(f"Error in get_predictions: {e}")
             return
@@ -461,25 +493,43 @@ def main():
         # Visualize grouped misclassified images
         try:
             visualize_mistakes_images_grouped_with_row_titles(
-                true_labels, predicted_labels, test_dataset, top_mistakes, class_names
+                true_labels,
+                predicted_labels,
+                dataloaders["test"].dataset,
+                top_mistakes,
+                class_names,
             )
         except Exception as e:
             print(f"Error in visualize_mistakes_images_grouped_with_row_titles: {e}")
 
-        # Run Grad-CAM for Dataset Images
-        if args.dataset:
-            print(f"Running Grad-CAM on {args.num_samples} dataset images...")
-            try:
-                visualize_dataset_with_gradcam(
-                    model,
-                    test_dataset,
-                    args.target_class,
-                    args.layer,
-                    device,
-                    args.num_samples,
-                )
-            except Exception as e:
-                print(f"Error in visualize_dataset_with_gradcam: {e}")
+        # **NEW: Generate and Plot Heatmap**
+        try:
+            print("Generating Grad-CAM heatmap for a sample image...")
+            sample_idx = 0
+            sample_image, _ = test_dataset[sample_idx]  # Get first test image
+            sample_image = sample_image.unsqueeze(0).to(device)  # Convert to batch
+
+            grad_cam = GradCAM(model, args.layer)
+            cam = grad_cam.generate_cam(sample_image, args.target_class)
+
+            sample_image_np = sample_image.squeeze(0).permute(1, 2, 0).cpu().numpy()
+            visualize_heatmap(sample_image_np, cam)
+        except Exception as e:
+            print(f"Error in visualize_heatmap: {e}")
+
+        # **NEW: Visualize Filters**
+        try:
+            visualize_filters(
+                model,
+                layers=[
+                    "features.0",
+                    "features.5",
+                    "features.10",
+                ],  # Adjust layers based on model
+                num_filters=8,
+            )
+        except Exception as e:
+            print(f"Error in visualize_filters: {e}")
 
         # Generate Architecture Visualizations
         try:

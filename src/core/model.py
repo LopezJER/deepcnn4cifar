@@ -3,19 +3,21 @@ from torch import nn
 class VGG_Network(nn.Module):
     def __init__(self, input_size, num_classes, config='vgg16'):
         super(VGG_Network, self).__init__()
-        conv_blocks = []
+        self.input_size = input_size
+        self.num_classes = num_classes
+        self.arch = config
 
-        if config == 'vgg11':
+        if self.arch == 'vgg11':
             print("Constructing VGG11")
-            self.conv2d_block1 = self.conv2d_block(input_size[0], 64, 1)
+            self.conv2d_block1 = self.conv2d_block(self.input_size[0], 64, 1)
             self.conv2d_block2 = self.conv2d_block(64, 128, 1)
             self.conv2d_block3 = self.conv2d_block(128, 256, 2)
             self.conv2d_block4 = self.conv2d_block(256, 512, 2)
             self.conv2d_block5 = self.conv2d_block(512, 512, 2)
 
-        elif config == 'vgg16':
+        elif self.arch == 'vgg16':
             print("Constructing VGG16")
-            self.conv2d_block1 = self.conv2d_block(input_size[0], 64, 2)
+            self.conv2d_block1 = self.conv2d_block(self.input_size[0], 64, 2)
             self.conv2d_block2 = self.conv2d_block(64, 128, 2)
             self.conv2d_block3 = self.conv2d_block(128, 256, 3)
             self.conv2d_block4 = self.conv2d_block(256, 512, 3)
@@ -27,7 +29,7 @@ class VGG_Network(nn.Module):
         self.linear2 = nn.Linear(4096, 4096)
         self.relu2 = nn.ReLU(inplace=True)
         self.dropout2 = nn.Dropout(0.5)
-        self.linear3 = nn.Linear(4096, num_classes)
+        self.linear3 = nn.Linear(4096, self.num_classes)
 
     def conv2d_block(self, in_channels, out_channels, num_layers):
         layers = []

@@ -16,6 +16,8 @@ from src.core.config import model_setup, hyperparams, paths, debug, class_names
 from src.utils.load_model import load_model
 from src.utils.load_data import get_cifar_dataloaders
 from torch.utils.data import DataLoader
+from collections import defaultdict
+from src.scripts.visualize import visualize_mistakes_images_grouped_with_row_titles
 
 
 class DebugDataset(torch.utils.data.Dataset):
@@ -43,48 +45,25 @@ class DebugDataset(torch.utils.data.Dataset):
         return image, label
 
 
-def get_debug_dataloaders(train_loader=None, val_loader=None, test_loader=None):
-    """Extracts a smaller subset of the dataset for debugging and retains transformations."""
-
+def get_debug_dataloader(test_loader):
+    """Extracts a smaller subset of the dataset for debugging and returns new DataLoaders."""
     def extract_subset(loader, num_images):
-        dataset = loader.dataset
-        subset_data = []
-        for images, labels in loader:
-            subset_data.extend(zip(images, labels))
-            if len(subset_data) >= num_images:
-                break
-        return subset_data[:num_images], dataset  # Return dataset for transform
+        data, labels = [], []
+        for images, lbls in loader:
+            data.extend(images)
+            labels.extend(lbls)
+            if len(data) >= num_images:
+                return list(zip(data[:num_images], labels[:num_images]))
+        return list(zip(data, labels))
 
-    print(
-        f"Debug mode: Using {debug['train_size'] + debug['val_size'] + debug['test_size']} images and {debug['num_epochs']} epochs"
-    )
+    print(f"Debug mode: Evaluating with {debug['test_size']} images")
+    
+    test_subset = extract_subset(test_loader, debug['test_size'])
+    test_loader = DataLoader(test_subset, batch_size=debug['batch_size'], shuffle=False)
+    
+    return test_loader
 
-    if train_loader is not None:
-        train_subset, train_dataset = extract_subset(train_loader, debug["train_size"])
-        train_loader = DataLoader(
-            DebugDataset(train_dataset, train_subset),
-            batch_size=debug["batch_size"],
-            shuffle=True,
-        )
 
-    if val_loader is not None:
-        val_subset, val_dataset = extract_subset(val_loader, debug["val_size"])
-        val_loader = DataLoader(
-            DebugDataset(val_dataset, val_subset),
-            batch_size=debug["batch_size"],
-            shuffle=False,
-        )
-
-    if test_loader is not None:
-        test_subset, test_dataset = extract_subset(test_loader, debug["test_size"])
-        test_loader = DataLoader(
-            DebugDataset(test_dataset, test_subset),
-            batch_size=debug["batch_size"],
-            shuffle=False,
-        )
-        return (test_loader,)  # Ensure single value return
-
-    return None
 
 
 # Evaluate the model
@@ -207,11 +186,6 @@ if __name__ == "__main__":
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Using device: {device}")
 
-        model_path = os.path.join(
-            paths["outputs_dir"], f"{model_setup['arch']}_checkpoint.pth"
-        )
-        assert os.path.exists(model_path), f"Model file not found: {model_path}"
-
         model = load_model()
 
         # Load test data
@@ -221,13 +195,13 @@ if __name__ == "__main__":
         # **Apply Debug Mode if Enabled**
         if debug["on"]:
             print("Debug mode enabled: Using a smaller test dataset.")
-            (test_loader["test"],) = get_debug_dataloaders(
+            test_loader = get_debug_dataloader(
                 test_loader=test_loader["test"]
             )
 
         # Evaluate model
         evaluation_results = evaluate_model(
-            model, test_loader["test"], device, num_classes=model_setup["num_classes"]
+            model, test_loader, device, num_classes=model_setup["num_classes"]
         )
         if evaluation_results:
             accuracy, loss, precision, recall, f1, cm, labels_oh, probs = (
@@ -242,6 +216,33 @@ if __name__ == "__main__":
 
             plot_confusion_matrix(cm, class_names)
             plot_roc_curves(labels_oh, probs, class_names)
+
+        # First, we need to get true and predicted labels from model predictions
+        true_labels = np.argmax(labels_oh, axis=1)  # Convert one-hot back to class indices
+        predicted_labels = np.argmax(probs, axis=1)  # Get predicted classes from probabilities
+
+        # Find the top mistake categories
+        mistake_counts = defaultdict(int)
+        for true_idx, pred_idx in zip(true_labels, predicted_labels):
+            if true_idx != pred_idx:
+                mistake_pair = (class_names[true_idx], class_names[pred_idx])
+                mistake_counts[mistake_pair] += 1
+
+        # Sort mistakes by frequency
+        top_mistakes = [(true, pred, count) 
+                        for (true, pred), count in sorted(mistake_counts.items(), 
+                                                        key=lambda x: x[1], 
+                                                        reverse=True)][:5]  # Show top 5 mistakes
+
+        # Call the visualization function
+        visualize_mistakes_images_grouped_with_row_titles(
+            true_labels=true_labels,
+            predicted_labels=predicted_labels,
+            test_dataset=test_loader.dataset,  # Get the dataset from the DataLoader
+            top_mistakes=top_mistakes,
+            class_names=class_names,
+            images_per_category=5  # Show 5 examples per mistake category
+        )
 
     except AssertionError as e:
         print(f"Assertion error in main execution: {e}")

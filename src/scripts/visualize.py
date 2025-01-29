@@ -11,8 +11,9 @@ from PIL import Image
 from src.utils.load_data import get_cifar_dataloaders
 from src.utils.load_model import load_model, setup_device
 from src.core.gradcam import GradCAM
-from src.core.config import model_setup, debug, class_names
-from src.scripts.evaluate import get_debug_dataloaders  # Import debug function
+from src.core.config import model_setup, debug, class_names,paths
+from torch.utils.data import DataLoader
+import sys
 
 
 num_classes = model_setup["num_classes"]
@@ -163,9 +164,6 @@ def visualize_mistakes_images_grouped_with_row_titles(
     assert isinstance(
         predicted_labels, np.ndarray
     ), "predicted_labels must be a numpy array"
-    assert isinstance(
-        test_dataset, torch.utils.data.Dataset
-    ), "test_dataset must be a valid dataset object"
     assert isinstance(top_mistakes, list), "top_mistakes must be a list"
     assert isinstance(class_names, list), "class_names must be a list"
     assert (
@@ -207,9 +205,11 @@ def visualize_mistakes_images_grouped_with_row_titles(
 
                 plt.subplot(rows, cols, row_idx * cols + col_idx + 2)
                 plt.imshow(image)
+                
                 plt.axis("off")
 
         plt.suptitle("Misclassified Images by Category", fontsize=16, fontweight="bold")
+        plt.savefig(paths['outputs_dir'], bbox_inches='tight', dpi=300)
         plt.tight_layout(rect=[0, 0, 1, 0.99])
         plt.show()
     except Exception as e:
@@ -366,8 +366,7 @@ def generate_vgg_architecture(architecture="vgg11"):
         "vgg11",
         "vgg16",
     ], "Architecture must be either 'vgg11' or 'vgg16'"
-
-    tex_file = f"./core/assets/custom_{architecture}.tex"
+    tex_file = f"assets/{architecture}_template.tex"
     output_dir = "./outputs"
     os.makedirs(output_dir, exist_ok=True)
     pdf_filename = os.path.join(output_dir, f"{architecture}_architecture.pdf")
@@ -383,6 +382,28 @@ def generate_vgg_architecture(architecture="vgg11"):
     except subprocess.CalledProcessError as e:
         print(f"Error compiling LaTeX file {tex_file}: {e}")
 
+def get_debug_dataloader(test_loader):
+    """Extracts a smaller subset of the dataset for debugging and returns new DataLoaders."""
+
+    def extract_subset(loader, num_images):
+        data, labels = [], []
+        try: 
+            for i, (images, lbls) in enumerate(loader):
+                print(i)
+                data.extend(images)
+                labels.extend(lbls)
+                if len(data) >= num_images:
+                    return list(zip(data[:num_images], labels[:num_images]))
+            return list(zip(data, labels))
+        except Exception as e:
+            print(e)
+
+    print(f"Debug mode: Evaluating with {debug['test_size']} images")
+    
+    test_subset = extract_subset(test_loader, debug['test_size'])
+    test_loader = DataLoader(test_subset, batch_size=debug['batch_size'], shuffle=False)
+    
+    return test_loader
 
 def main():
     try:
@@ -394,6 +415,10 @@ def main():
             "--image",
             type=str,
             help="Path to the input image (e.g., --image path/to/image.png)",
+        )
+        parser.add_argument(
+            "--architecture",
+            action="store_true",
         )
         parser.add_argument(
             "--dataset",
@@ -421,10 +446,16 @@ def main():
 
         args = parser.parse_args()
 
-        # Load device
+        if len(sys.argv) == 1:  # Only the script name is present, no additional args
+            print("No arguments provided. Please refer to README.md for instructions.")
+            parser.print_help()  # Show help message with usage instructions
+            sys.exit(1)
+
+        args = parser.parse_args()
         device = setup_device()
         assert device is not None, "Device setup failed."
 
+        print("Loading model...")
         # Load model
         model = load_model()
         assert model is not None, "Model loading failed."
@@ -442,105 +473,15 @@ def main():
                 print(f"Error in visualize_with_gradcam: {e}")
             return  # Exit after single image Grad-CAM to avoid unnecessary computations
 
-        # Load dataset
-        try:
-            dataloaders = get_cifar_dataloaders(include_test=True)
-            assert "test" in dataloaders, "Test dataloader is missing."
-
-            # Apply debug mode if enabled
-            if debug["on"]:
-                print("Debug mode enabled: Using a smaller test dataset.")
-                dataloaders["test"] = get_debug_dataloaders(
-                    test_loader=dataloaders["test"]
-                )[0]
-        except Exception as e:
-            print(f"Error loading dataset: {e}")
-            return
-
-        # Run Visualization for Dataset Transformations
-        try:
-            visualize_image_transformations()
-        except Exception as e:
-            print(f"Error in visualize_image_transformations: {e}")
-
-        test_loader = dataloaders["test"]
-        test_dataset = test_loader.dataset
-
-        # Generate predictions
-        try:
-            true_labels, predicted_labels = get_predictions(
-                model, dataloaders["test"], device
-            )
-        except Exception as e:
-            print(f"Error in get_predictions: {e}")
-            return
-
-        # Generate confusion matrix
-        try:
-            cm = confusion_matrix(true_labels, predicted_labels)
-            class_names = test_dataset.classes
-        except Exception as e:
-            print(f"Error computing confusion matrix: {e}")
-            return
-
-        # Visualize top mistakes
-        try:
-            top_mistakes = visualize_top_mistakes(cm, class_names, top_n=5)
-        except Exception as e:
-            print(f"Error in visualize_top_mistakes: {e}")
-            return
-
-        # Visualize grouped misclassified images
-        try:
-            visualize_mistakes_images_grouped_with_row_titles(
-                true_labels,
-                predicted_labels,
-                dataloaders["test"].dataset,
-                top_mistakes,
-                class_names,
-            )
-        except Exception as e:
-            print(f"Error in visualize_mistakes_images_grouped_with_row_titles: {e}")
-
-        # **NEW: Generate and Plot Heatmap**
-        try:
-            print("Generating Grad-CAM heatmap for a sample image...")
-            sample_idx = 0
-            sample_image, _ = test_dataset[sample_idx]  # Get first test image
-            sample_image = sample_image.unsqueeze(0).to(device)  # Convert to batch
-
-            grad_cam = GradCAM(model, args.layer)
-            cam = grad_cam.generate_cam(sample_image, args.target_class)
-
-            sample_image_np = sample_image.squeeze(0).permute(1, 2, 0).cpu().numpy()
-            visualize_heatmap(sample_image_np, cam)
-        except Exception as e:
-            print(f"Error in visualize_heatmap: {e}")
-
-        # **NEW: Visualize Filters**
-        try:
-            visualize_filters(
-                model,
-                layers=[
-                    "features.0",
-                    "features.5",
-                    "features.10",
-                ],  # Adjust layers based on model
-                num_filters=8,
-            )
-        except Exception as e:
-            print(f"Error in visualize_filters: {e}")
-
-        # Generate Architecture Visualizations
-        try:
+        if args.arch:
             generate_vgg_architecture("vgg16")
             generate_vgg_architecture("vgg11")
-        except Exception as e:
-            print(f"Error in generate_vgg_architecture: {e}")
 
     except Exception as e:
         print(f"Unexpected error in main execution: {e}")
 
-
 if __name__ == "__main__":
+    print("Hi")
     main()
+
+    

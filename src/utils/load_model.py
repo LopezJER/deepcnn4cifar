@@ -62,23 +62,47 @@ def verify_or_download_weights(pretrained_weights_arch):
         print("Creating models directory")
         os.mkdir(f'{models_dir}')
     if not os.path.isfile(f'{models_dir}/{model}.pth'):
-        model_path = hf_hub_download(
-            repo_id=repo_id, 
-            filename=f"{model}.pth", 
-            local_dir="models"
-        )
-        print(f"{model}.pth downloaded to {model_path}")
+
+        try:
+            model_path = hf_hub_download(
+                repo_id=repo_id, 
+                filename=f"{model}.pth", 
+                local_dir="models"
+            )
+
+            print(f"Downloaded to {model_path}")
+        except Exception as e:
+            raise HFModelNotFoundException("HuggingFace model not found!")
+            
     else:
         print(f"{model}.pth found in {models_dir}!")
 
 def get_pretrained_weights(models_dir, pretrained_weights_arch, device):
-    weights_object = torch.load(f'{models_dir}/{pretrained_weights_arch}.pth',  map_location=torch.device(device))
-    if 'model_state_dict' in weights_object.keys():
-        return weights_object['model_state_dict']
-    else:
+    try:
+        weights_path = os.path.join(models_dir, f"{pretrained_weights_arch}.pth")
+        
+        # Check if the file exists before loading
+        if not os.path.isfile(weights_path):
+            raise FileNotFoundError(f"Pretrained weights not found: {weights_path}")
+
+        weights_object = torch.load(weights_path, map_location=torch.device(device))
+        
+        if 'model_state_dict' in weights_object:
+            return weights_object['model_state_dict']
         return weights_object
+
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+    except Exception as e:
+        print(f"Failed to load pretrained weights: {e}")
+
+    return None  # Return None if loading fails
+
     
 class WeightTransferException(Exception):
+    pass
+
+class HFModelNotFoundException(Exception):
     pass
 
 def load_model():

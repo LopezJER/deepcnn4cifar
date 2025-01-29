@@ -5,18 +5,15 @@ This repository implementing deep convolutional neural networks for the CIFAR-10
 📂 Project Structure:
 
 deepcnn4cifar/
-├── core/
-│ ├── config.py # Configuration settings
-│ ├── model.py # Model definitions
-├── scripts/
-│ ├── train.py # Training scripts
-│ ├── evaluate.py # Evaluation scripts
-│ ├── visualize.py # Visualization scripts
-├── utils/
-│ ├── load_data.py # Data loading utilities
-│ ├── load_model.py # Pre-trained model utilities
-├── data_preprocessing.ipynb # Data exploration and preprocessing
-├── README.md # This file
+core/config.py # Configuration settings
+/ model.py # Model definitions
+scripts/train.py # Training scripts
+/evaluate.py # Evaluation scripts
+/visualize.py # Visualization scripts
+utils/load_data.py # Data loading utilities
+/load_model.py # Pre-trained model utilities
+data_preprocessing.ipynb # Data exploration and preprocessing
+README.md # This file
 
 🚀 Features
 

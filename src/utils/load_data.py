@@ -1,6 +1,7 @@
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, random_split, Dataset
 import numpy as np
+from src.core.config import model_setup
 
 class TransformDataset(Dataset):
     def __init__(self, dataset, transform=None):
@@ -16,33 +17,36 @@ class TransformDataset(Dataset):
             image = self.transform(image)
         return image, label
 
+def calculate_dataset_statistics():
+    train_data = datasets.CIFAR10(root='./data', train=True, download=True)
+
+    # Calculate mean and std
+    # as per Github discussions (paulkorir, 2018): https://github.com/facebookarchive/fb.resnet.torch/issues/180#issuecomment-433419706
+    x = np.concatenate([np.asarray(train_data[i][0]) for i in range(len(train_data))])
+    train_mean = np.mean(x, axis=(0, 1)) / 255.0
+    train_std = np.std(x, axis=(0, 1)) / 255.0
+
+    return train_mean, train_std
 def get_cifar_dataloaders(include_test = False, test_only = False):
     cifar_dataloader = {}
+
+    dataset_mean, dataset_std = calculate_dataset_statistics()
+    train_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Resize((224, 224)),
+        transforms.RandomHorizontalFlip(),
+        transforms.ColorJitter(brightness=0.2, hue=0.1),
+        transforms.Normalize(mean=dataset_mean.tolist(), std=dataset_std.tolist())
+    ])
+
+    val_test_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Resize((224, 224)),
+        transforms.Normalize(mean=dataset_mean.tolist(), std=dataset_std.tolist())
+    ])
+    batch_size = 64
+
     if not test_only:
-        train_data = datasets.CIFAR10(root='./data', train=True, download=True)
-
-        # Calculate mean and std
-        # as per Github discussions (paulkorir, 2018): https://github.com/facebookarchive/fb.resnet.torch/issues/180#issuecomment-433419706
-        x = np.concatenate([np.asarray(train_data[i][0]) for i in range(len(train_data))])
-        train_mean = np.mean(x, axis=(0, 1)) / 255.0
-        train_std = np.std(x, axis=(0, 1)) / 255.0
-
-        # Define transformations
-        # Experiment with/tune augmentations here
-        train_transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Resize((224, 224)),
-            transforms.RandomHorizontalFlip(),
-            transforms.ColorJitter(brightness=0.2, hue=0.1),
-            transforms.Normalize(mean=train_mean.tolist(), std=train_std.tolist())
-        ])
-
-        val_test_transform = transforms.Compose([
-            transforms.ToTensor(),
-            transforms.Resize((224, 224)),
-            transforms.Normalize(mean=train_mean.tolist(), std=train_std.tolist())
-        ])
-
 
         # Load raw dataset without transforms first
         train_dataset_raw = datasets.CIFAR10(root='./data', train=True, transform=None, download=True)
@@ -58,7 +62,6 @@ def get_cifar_dataloaders(include_test = False, test_only = False):
         val_data = TransformDataset(val_subset_raw, val_test_transform)
 
         # Create DataLoaders
-        batch_size = 64
         train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_data, batch_size=batch_size, shuffle=False)
         cifar_dataloader['train'] = train_loader
@@ -76,3 +79,9 @@ def get_cifar_dataloaders(include_test = False, test_only = False):
         cifar_dataloader['test'] = test_loader
     print("Successfully preprocessed and split data.")
     return cifar_dataloader
+
+
+
+
+
+

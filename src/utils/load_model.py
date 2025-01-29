@@ -1,5 +1,5 @@
-from core.model import VGG_Network
-from core.config import model_setup, weights, paths
+from src.core.model import VGG_Network
+from src.core.config import model_setup, weights, paths
 import torch
 import torch.nn as nn
 from huggingface_hub import hf_hub_download
@@ -82,7 +82,7 @@ class WeightTransferException(Exception):
     pass
 
 def load_model():
-    input_size = model_setup['arch']
+    input_size = model_setup['input_size']
     num_classes = model_setup['num_classes']
     arch = model_setup['arch'] 
     use_pretrained_weights = model_setup['use_pretrained_weights']
@@ -90,7 +90,7 @@ def load_model():
     models_dir = paths['local_models_dir']
     device = setup_device()
 
-    vgg_model = VGG_Network(model_setup['input_size'], model_setup['num_classes'], config=arch).to(device)
+    vgg_model = VGG_Network(input_size, num_classes, config=arch).to(device)
     if use_pretrained_weights:
         verify_or_download_weights(pretrained_weights_arch)
         pretrained_weights = get_pretrained_weights(models_dir, pretrained_weights_arch, device)

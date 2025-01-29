@@ -7,10 +7,10 @@ import numpy as np
 import time
 import os
 import matplotlib.pyplot as plt
-from core.model import VGG_Network
-from core.config import model_setup, hyperparams, paths
-from utils.load_model import load_model, setup_device
-from utils.load_data import get_cifar_dataloaders
+from src.core.model import VGG_Network
+from src.core.config import model_setup, hyperparams, paths
+from src.utils.load_model import load_model, setup_device
+from src.utils.load_data import get_cifar_dataloaders
 
 # Function to train the model
 def train_model(model, train_loader, val_loader, hyps, device):
@@ -94,6 +94,8 @@ def train_model(model, train_loader, val_loader, hyps, device):
                 best_val_loss = average_val_loss
                 epochs_without_improvement = 0
                 model_save_path = os.path.join(paths['outputs_dir'], f"{model_setup['arch']}_checkpoint.pth")
+                if not os.path.isdir(paths['outputs_dir']):
+                    os.mkdir(paths['outputs_dir'])
                 torch.save({
                     'model_state_dict': model.state_dict(),
                     'optimizer_state_dict': optimizer.state_dict(),
@@ -125,7 +127,7 @@ def get_hyperparams(model):
     """
     try:
         optimizer = optim.SGD(model.parameters(), momentum=hyperparams['momentum'], lr=hyperparams['learning_rate'], weight_decay=hyperparams['weight_decay'])
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=2, factor=0.1, verbose=True)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=2, factor=0.1)
 
         hyps = {key: value for key, value in hyperparams.items()}
         hyps['optimizer'], hyps['scheduler'] = optimizer, scheduler

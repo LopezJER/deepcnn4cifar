@@ -8,7 +8,7 @@ import time
 import os
 import matplotlib.pyplot as plt
 from src.core.model import VGG_Network
-from src.core.config import model_setup, hyperparams, paths
+from src.core.config import model_setup, hyperparams, paths, debug
 from src.utils.load_model import load_model, setup_device
 from src.utils.load_data import get_cifar_dataloaders
 
@@ -28,7 +28,14 @@ def train_model(model, train_loader, val_loader, hyps, device):
         tuple: Train losses, validation losses, and epoch times.
     """
     try:
-        num_epochs = hyps['num_epochs']
+
+        if debug['on']:
+            num_epochs = debug['num_epochs']
+            train_loader, val_loader = get_debug_dataloaders(train_loader, val_loader)
+                    
+        else:
+            num_epochs = hyps['num_epochs']
+            
         optimizer = hyps['optimizer']
         scheduler = hyps['scheduler']
         patience = hyps['early_stopping_patience']
@@ -115,6 +122,28 @@ def train_model(model, train_loader, val_loader, hyps, device):
         print(f"An error occurred during training: {e}")
         raise
 
+def get_debug_dataloaders(train_loader, val_loader):
+    """Extracts a smaller subset of the dataset for debugging and returns new DataLoaders."""
+    def extract_subset(loader, num_images):
+        data, labels = [], []
+        for images, lbls in loader:
+            data.extend(images)
+            labels.extend(lbls)
+            if len(data) >= num_images:
+                return list(zip(data[:num_images], labels[:num_images]))
+        return list(zip(data, labels))
+
+    print(f"Debug mode: Using {debug['train_size'] + debug['val_size']} images and {debug['num_epochs']} epochs")
+    
+    train_subset = extract_subset(train_loader, debug['train_size'])
+    val_subset = extract_subset(val_loader, debug['val_size'])
+
+    train_loader = DataLoader(train_subset, batch_size=debug['batch_size'], shuffle=True)
+    val_loader = DataLoader(val_subset, batch_size=debug['batch_size'], shuffle=False)
+    
+    return train_loader, val_loader
+
+
 def get_hyperparams(model):
     """
     Configure hyperparameters including optimizer and scheduler.
@@ -145,7 +174,7 @@ def visualize_losses(train_losses, val_losses):
         val_losses (list): List of validation losses.
     """
     try:
-        output_dir = paths['outputs']
+        output_dir = paths['outputs_dir']
         os.makedirs(output_dir, exist_ok=True)
         loss_plot_path = os.path.join(output_dir, "train_val_loss.png")
 
@@ -157,7 +186,6 @@ def visualize_losses(train_losses, val_losses):
         plt.title('Train and Validation Loss')
         plt.grid()
         plt.savefig(loss_plot_path)
-        plt.show()
 
         print(f"Loss plot saved to: {loss_plot_path}")
     except Exception as e:

@@ -1,7 +1,7 @@
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader, random_split, Dataset
 import numpy as np
-from src.core.config import model_setup
+from src.core.config import model_setup, hyperparams
 
 class TransformDataset(Dataset):
     def __init__(self, dataset, transform=None):
@@ -28,9 +28,14 @@ def calculate_dataset_statistics():
 
     return train_mean, train_std
 def get_cifar_dataloaders(include_test = False, test_only = False):
+    print("Loading data...")
     cifar_dataloader = {}
 
+    batch_size = hyperparams['batch_size']
+
     dataset_mean, dataset_std = calculate_dataset_statistics()
+
+    print("Processing and augmenting data...")
     train_transform = transforms.Compose([
         transforms.ToTensor(),
         transforms.Resize((224, 224)),
@@ -44,7 +49,7 @@ def get_cifar_dataloaders(include_test = False, test_only = False):
         transforms.Resize((224, 224)),
         transforms.Normalize(mean=dataset_mean.tolist(), std=dataset_std.tolist())
     ])
-    batch_size = 64
+
 
     if not test_only:
 
@@ -52,7 +57,7 @@ def get_cifar_dataloaders(include_test = False, test_only = False):
         train_dataset_raw = datasets.CIFAR10(root='./data', train=True, transform=None, download=True)
 
         # Split raw dataset
-        val_split = 0.2
+        val_split = model_setup['val_split']
         train_size = int((1 - val_split) * len(train_dataset_raw))
         val_size = len(train_dataset_raw) - train_size
         train_subset_raw, val_subset_raw = random_split(train_dataset_raw, [train_size, val_size])

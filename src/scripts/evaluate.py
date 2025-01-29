@@ -17,6 +17,7 @@ from utils.load_data import get_dataloader
 
 # Evaluate the model
 def evaluate_model(model, dataloader, device, num_classes):
+
     model.eval()
     criterion = torch.nn.CrossEntropyLoss()
     total_loss = 0.0

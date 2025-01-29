@@ -95,7 +95,7 @@ def load_model():
         verify_or_download_weights(pretrained_weights_arch)
         pretrained_weights = get_pretrained_weights(models_dir, pretrained_weights_arch, device)
         if pretrained_weights_arch == arch: 
-            vgg_model = vgg_model.load_state_dict(pretrained_weights)
+            vgg_model.load_state_dict(pretrained_weights)
             print("Successfully loaded pre-trained weights.")
         elif pretrained_weights_arch == 'vgg11' and arch == 'vgg16': 
             transfer_weights_from_state_dict(pretrained_weights, vgg_model)

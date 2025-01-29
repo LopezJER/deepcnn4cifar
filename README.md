@@ -51,22 +51,22 @@ Track and compare model accuracy and loss metrics with detailed graphs.
 
 **How To Use:**
 
-1. Clone the Repository
+1. Clone the Repository <br>
    `git clone https://github.com/yourusername/deepcnn4cifar.git` <br>
-   `cd deepcnn4cifar`
-2. Install Dependencies
-   `pip install -r requirements.txt`
-   Ensure LaTeX is installed for generating architecture diagrams:
-   `pdflatex --version`
+   `cd deepcnn4cifar`<br>
+2. Install Dependencies<br>
+   `pip install -r requirements.txt`<br>
+   Ensure LaTeX is installed for generating architecture diagrams:<br>
+   `pdflatex --version`<br>
 
-3. Train a model on CIFAR-10 using:
-   `python -m src.scripts.train.py`
+3. Train a model on CIFAR-10 using:<br>
+   `python -m src.scripts.train.py`<br>
 
-4. Evaluate the Model
-   `python -m src.scripts.evaluate.py`
+4. Evaluate the Model<br>
+   `python -m src.scripts.evaluate.py`<br>
 
-5. Visualize Results (with GradCam)
-   `python -m src.scripts/visualize.py --image.png`
+5. Visualize Results (with GradCam)<br>
+   `python -m src.scripts/visualize.py --image.png`<br>
 
 References:
 CIFAR-10 Dataset: A dataset of 60,000 32x32 color images in 10 classes.

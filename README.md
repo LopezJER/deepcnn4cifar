@@ -56,6 +56,8 @@ Track and compare model accuracy and loss metrics with detailed graphs.
    `cd deepcnn4cifar`
 2. Install Dependencies
    `pip install -r requirements.txt`
+   Ensure LaTeX is installed for generating architecture diagrams:
+   `pdflatex --version`
 
 3. Train a model on CIFAR-10 using:
    `python scripts/train.py`

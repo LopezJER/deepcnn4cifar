@@ -1,23 +1,29 @@
-🌟 deepcnn4cifar 🌟
+**Very Deep Convolutional Networks for Large-Scale Image Recognition**
 
+Cite- https://doi.org/10.48550/arXiv.1409.1556 , Simonyan and Zisserman (2015)
+
+🌟 deepcnn4cifar 🌟
 This repository implementing deep convolutional neural networks for the CIFAR-10 dataset. This project demonstrates training, evaluation, and visualization of deep learning models for image classification. Dive in to explore the world of computer vision with powerful tools and stunning visualizations.
 
-📂 Project Structure:
+_VGG16 Architecture:_
+![alt text](image-2.png)
 
+# Project Structure:
+```
 deepcnn4cifar/
 ├── core/
-│   ├── config.py            # Configuration settings
-│   ├── model.py             # Model definitions
+│   ├── config.py             # Configuration settings
+│   ├── model.py              # Model definitions
 ├── scripts/
-│   ├── train.py             # Training scripts
-│   ├── evaluate.py          # Evaluation scripts
-│   ├── visualize.py         # Visualization scripts
+│   ├── train.py              # Training scripts
+│   ├── evaluate.py           # Evaluation scripts
+│   ├── visualize.py          # Visualization scripts
 ├── utils/
-│   ├── load_data.py         # Data loading utilities
-│   ├── load_model.py        # Pre-trained model utilities
-├── data_preprocessing.ipynb # Data exploration and preprocessing
-├── README.md                # This file
-
+│   ├── load_data.py          # Data loading utilities
+│   ├── load_model.py         # Pre-trained model utilities
+├── data_preprocessing.ipynb  # Data exploration and preprocessing
+├── README.md                 # This file
+```
 
 🚀 Features
 

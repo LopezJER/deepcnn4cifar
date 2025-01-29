@@ -25,3 +25,16 @@ paths = {
     "local_models_dir" : "models",
     "outputs_dir" : "outputs"
 }
+
+class_names  = [
+        "Airplane",
+        "Automobile",
+        "Bird",
+        "Cat",
+        "Deer",
+        "Dog",
+        "Frog",
+        "Horse",
+        "Ship",
+        "Truck",
+    ]

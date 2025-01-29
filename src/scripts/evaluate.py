@@ -10,6 +10,7 @@ import numpy as np
 import seaborn as sns
 import matplotlib.pyplot as plt
 from core.model import VGG_Network
+from core.config import class_names
 from utils.load_model import load_model
 from utils.load_data import get_dataloader
 
@@ -115,18 +116,5 @@ if __name__ == "__main__":
     print(f"Recall: {recall:.4f}")
     print(f"F1 Score: {f1:.4f}")
 
-    # Display results
-    class_names = [
-        "Airplane",
-        "Automobile",
-        "Bird",
-        "Cat",
-        "Deer",
-        "Dog",
-        "Frog",
-        "Horse",
-        "Ship",
-        "Truck",
-    ]
     plot_confusion_matrix(cm, class_names)
     plot_roc_curves(labels_oh, probs, class_names)

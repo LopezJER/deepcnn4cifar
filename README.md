@@ -12,7 +12,7 @@ _CIFAR 10 Data Examples:_
 
 
 _Data division:_
-![alt text](./assets/image-4.png)
+![alt text](./assets/image-7.png)
 
 
 _VGG Architecture:_

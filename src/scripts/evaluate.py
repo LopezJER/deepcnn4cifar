@@ -13,10 +13,56 @@ import seaborn as sns
 import os
 from src.core.config import model_setup, paths, debug
 from src.utils.load_model import load_model
-from src.utils.load_data import (
-    get_cifar_dataloaders,
-    get_debug_dataloaders,
-)
+from src.utils.load_data import get_cifar_dataloaders
+from torch.utils.data import DataLoader
+from collections import defaultdict
+from src.scripts.visualize import visualize_mistakes_images_grouped_with_row_titles
+
+
+class DebugDataset(torch.utils.data.Dataset):
+    """Custom dataset to retain transforms and attributes when using a subset."""
+
+    def __init__(self, original_dataset, subset_data):
+        self.original_dataset = original_dataset  # Keep reference to original dataset
+        self.data = subset_data  # Store the reduced subset
+        self.transform = getattr(original_dataset, "transform", None)  # Keep transform
+        self.classes = getattr(original_dataset, "classes", None)  # Retain class names
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, idx):
+        image, label = self.data[idx]
+
+        # Convert Tensor to PIL Image if needed
+        if isinstance(image, torch.Tensor):
+            image = transforms.ToPILImage()(image)
+
+        if self.transform:
+            image = self.transform(image)  # Apply original dataset's transform
+
+        return image, label
+
+
+def get_debug_dataloader(test_loader):
+    """Extracts a smaller subset of the dataset for debugging and returns new DataLoaders."""
+    def extract_subset(loader, num_images):
+        data, labels = [], []
+        for images, lbls in loader:
+            data.extend(images)
+            labels.extend(lbls)
+            if len(data) >= num_images:
+                return list(zip(data[:num_images], labels[:num_images]))
+        return list(zip(data, labels))
+
+    print(f"Debug mode: Evaluating with {debug['test_size']} images")
+    
+    test_subset = extract_subset(test_loader, debug['test_size'])
+    test_loader = DataLoader(test_subset, batch_size=debug['batch_size'], shuffle=False)
+    
+    return test_loader
+
+
 
 
 # Evaluate the model
@@ -229,26 +275,15 @@ if __name__ == "__main__":
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Using device: {device}")
 
-        model_path = os.path.join(
-            paths["outputs_dir"], f"{model_setup['arch']}_checkpoint.pth"
-        )
-        assert os.path.exists(model_path), f"Model file not found: {model_path}"
-
         model = load_model()
         assert model is not None, "Failed to load model."
 
         # **Apply Debug Mode if Enabled**
         if debug["on"]:
             print("Debug mode enabled: Using a smaller test dataset.")
-            dataloaders = get_cifar_dataloaders(include_test=True, test_only=True)
-            _, _, test_loader = get_debug_dataloaders(None, None, dataloaders["test"])
-        else:
-            # Load full test dataset normally
-            test_loader = get_cifar_dataloaders(include_test=True, test_only=True)[
-                "test"
-            ]
-        # Ensure test data exists
-        assert test_loader is not None, "Test DataLoader is missing."
+            test_loader = get_debug_dataloader(
+                test_loader=test_loader["test"]
+            )
 
         # Evaluate model
         evaluation_results = evaluate_model(
@@ -265,30 +300,38 @@ if __name__ == "__main__":
             print(f"Recall: {recall:.4f}")
             print(f"F1 Score: {f1:.4f}")
 
-            # Compute Confusion Matrix
-            cm = calculate_confusion_matrix(
-                labels_oh.argmax(axis=1), probs.argmax(axis=1)
-            )
+            plot_confusion_matrix(cm, class_names)
+            plot_roc_curves(labels_oh, probs, class_names)
 
-            # Compute ROC Curve Data
-            roc_data = calculate_roc_curve(
-                labels_oh, probs, test_loader.dataset.classes
-            )
+        # First, we need to get true and predicted labels from model predictions
+        true_labels = np.argmax(labels_oh, axis=1)  # Convert one-hot back to class indices
+        predicted_labels = np.argmax(probs, axis=1)  # Get predicted classes from probabilities
 
-            # Define save paths dynamically using paths["outputs_dir"]
-            confusion_matrix_path = os.path.join(
-                paths["outputs_dir"], "confusion_matrix.png"
-            )
-            roc_curve_path = os.path.join(paths["outputs_dir"], "roc_curves.png")
+        # Find the top mistake categories
+        mistake_counts = defaultdict(int)
+        for true_idx, pred_idx in zip(true_labels, predicted_labels):
+            if true_idx != pred_idx:
+                mistake_pair = (class_names[true_idx], class_names[pred_idx])
+                mistake_counts[mistake_pair] += 1
 
-            # Visualize Results
-            plot_confusion_matrix(
-                cm, test_loader.dataset.classes, save_path=confusion_matrix_path
-            )
-            plot_roc_curves(
-                roc_data, test_loader.dataset.classes, save_path=roc_curve_path
-            )
+        # Sort mistakes by frequency
+        top_mistakes = [(true, pred, count) 
+                        for (true, pred), count in sorted(mistake_counts.items(), 
+                                                        key=lambda x: x[1], 
+                                                        reverse=True)][:5]  # Show top 5 mistakes
 
+        # Call the visualization function
+        visualize_mistakes_images_grouped_with_row_titles(
+            true_labels=true_labels,
+            predicted_labels=predicted_labels,
+            test_dataset=test_loader.dataset,  # Get the dataset from the DataLoader
+            top_mistakes=top_mistakes,
+            class_names=class_names,
+            images_per_category=5  # Show 5 examples per mistake category
+        )
+
+    except AssertionError as e:
+        print(f"Assertion error in main execution: {e}")
     except Exception as e:
         print(f"Unexpected error in main execution: {e}")
         raise

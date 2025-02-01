@@ -46,34 +46,34 @@ deepcnn4cifar/
 🎨 Visualizations
 Our visualizations provide detailed insights into training and evaluation. Below is an example of a training accuracy vs. epochs chart:
 
-![alt text](image.png)
+![alt text](./assets/image.png)
 
 We also include confusion matrices for evaluating model performance:
 
-![alt text](image-1.png)
+![alt text](./assets/image-1.png)
 
-You can easily adjust the depth and parameters of the vggs in core/model.py.
+You can easily adjust the depth and parameters of the vggs in src/core/model.py.
 Utilize scripts/visualize.py to generate interactive charts and matrices.
 Track and compare model accuracy and loss metrics with detailed graphs.
 
 **How To Use:**
 
-1. Clone the Repository
-   `git clone https://github.com/yourusername/deepcnn4cifar.git`
-   `cd deepcnn4cifar`
-2. Install Dependencies
-   `pip install -r requirements.txt`
-   Ensure LaTeX is installed for generating architecture diagrams:
-   `pdflatex --version`
+1. Clone the Repository <br>
+   `git clone https://github.com/yourusername/deepcnn4cifar.git` <br>
+   `cd deepcnn4cifar`<br>
+2. Install Dependencies<br>
+   `pip install -r requirements.txt`<br>
+   Ensure LaTeX is installed for generating architecture diagrams:<br>
+   `pdflatex --version`<br>
 
-3. Train a model on CIFAR-10 using:
-   `python scripts/train.py`
+3. Train a model on CIFAR-10 using:<br>
+   `python -m src.scripts.train.py`<br>
 
-4. Evaluate the Model
-   `python scripts/evaluate.py`
+4. Evaluate the Model<br>
+   `python -m src.scripts.evaluate.py`<br>
 
-5. Visualize Results
-   `python scripts/visualize.py`
+5. Visualize Results (with GradCam)<br>
+   `python -m src.scripts/visualize.py --image.png`<br>
 
 References:
 CIFAR-10 Dataset: A dataset of 60,000 32x32 color images in 10 classes.

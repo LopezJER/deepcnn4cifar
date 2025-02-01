@@ -6,13 +6,16 @@ Cite- https://doi.org/10.48550/arXiv.1409.1556 , Simonyan and Zisserman (2015)
 This repository implementing deep convolutional neural networks for the CIFAR-10 dataset. This project demonstrates training, evaluation, and visualization of deep learning models for image classification. Dive in to explore the world of computer vision with powerful tools and stunning visualizations.
 
 _CIFAR 10 Data Examples:_
-![alt text](image-5.png)
+![alt text](./assets/image-5.png)
+
 
 _Data division:_
-![alt text](image-4.png)
+![alt text](./assets/image-4.png)
+
 
 _VGG Architecture:_
-![alt text](image-6.png)
+![alt text](./assets/image-6.png)
+
 
 **Project Structure:**
 
@@ -54,7 +57,7 @@ We also include confusion matrices for evaluating model performance:
 
 And features map showing the filters activation for an imput image after is goes through a specified layer
 
-![alt test](./assets\image-10.jpg)
+![alt text](./assets/image-10.jpg)
 
 You can easily adjust the depth and parameters of the vggs in src/core/model.py.
 Utilize scripts/visualize.py to generate interactive charts and matrices.

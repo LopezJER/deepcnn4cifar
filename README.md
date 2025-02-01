@@ -52,6 +52,10 @@ We also include confusion matrices for evaluating model performance:
 
 ![alt text](./assets/image-1.png)
 
+And features map showing the filters activation for an imput image after is goes through a specified layer
+
+![alt test](./assets\image-10.jpg)
+
 You can easily adjust the depth and parameters of the vggs in src/core/model.py.
 Utilize scripts/visualize.py to generate interactive charts and matrices.
 Track and compare model accuracy and loss metrics with detailed graphs.

@@ -1,16 +1,16 @@
 import torch
 from torch import nn
-import torch.optim as optim
-from torchvision import datasets, transforms
-from torch.utils.data import DataLoader, random_split, Dataset
-import numpy as np
 import time
 import os
 import matplotlib.pyplot as plt
-from src.core.model import VGG_Network
-from src.core.config import model_setup, hyperparams, paths, debug
+from src.core.config import model_setup, paths, debug
+from src.utils.training_utils import get_hyperparams  # Import the function
 from src.utils.load_model import load_model, setup_device
-from src.utils.load_data import get_cifar_dataloaders
+from src.utils.load_data import (
+    get_cifar_dataloaders,
+    get_debug_dataloaders,
+)
+
 
 # Function to train the model
 def train_model(model, train_loader, val_loader, hyps, device):
@@ -28,19 +28,12 @@ def train_model(model, train_loader, val_loader, hyps, device):
         tuple: Train losses, validation losses, and epoch times.
     """
     try:
-
-        if debug['on']:
-            num_epochs = debug['num_epochs']
-            train_loader, val_loader = get_debug_dataloaders(train_loader, val_loader)
-                    
-        else:
-            num_epochs = hyps['num_epochs']
-            
-        optimizer = hyps['optimizer']
-        scheduler = hyps['scheduler']
-        patience = hyps['early_stopping_patience']
+        num_epochs = debug["num_epochs"] if debug["on"] else hyps["num_epochs"]
+        optimizer = hyps["optimizer"]
+        scheduler = hyps["scheduler"]
+        patience = hyps["early_stopping_patience"]
         criterion = nn.CrossEntropyLoss()
-        best_val_loss = float('inf')
+        best_val_loss = float("inf")
         epochs_without_improvement = 0
 
         train_losses = []
@@ -57,7 +50,6 @@ def train_model(model, train_loader, val_loader, hyps, device):
                 inputs, labels = inputs.to(device), labels.to(device)
 
                 optimizer.zero_grad()
-
                 outputs = model(inputs)
                 loss = criterion(outputs, labels)
 
@@ -65,7 +57,9 @@ def train_model(model, train_loader, val_loader, hyps, device):
                 assert not torch.isnan(loss), "Loss is NaN. Check your data and model."
 
                 loss.backward()
-                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)  # Clip Gradients
+                torch.nn.utils.clip_grad_norm_(
+                    model.parameters(), max_norm=1.0
+                )  # Clip Gradients
                 optimizer.step()
 
                 train_running_loss += loss.item()
@@ -94,21 +88,27 @@ def train_model(model, train_loader, val_loader, hyps, device):
             train_losses.append(average_train_loss)
             val_losses.append(average_val_loss)
 
-            print(f"Train Loss: {average_train_loss:.4f}, Validation Loss: {average_val_loss:.4f}, Time: {epoch_time:.2f}s")
+            print(
+                f"Train Loss: {average_train_loss:.4f}, Validation Loss: {average_val_loss:.4f}, Time: {epoch_time:.2f}s"
+            )
 
             # Save Best Model
             if average_val_loss < best_val_loss:
                 best_val_loss = average_val_loss
                 epochs_without_improvement = 0
-                model_save_path = os.path.join(paths['outputs_dir'], f"{model_setup['arch']}_checkpoint.pth")
-                if not os.path.isdir(paths['outputs_dir']):
-                    os.mkdir(paths['outputs_dir'])
-                torch.save({
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict(),
-                    'epoch': epoch,
-                    'best_val_loss': best_val_loss
-                }, model_save_path)
+                model_save_path = os.path.join(
+                    paths["outputs_dir"], f"{model_setup['arch']}_checkpoint.pth"
+                )
+                os.makedirs(paths["outputs_dir"], exist_ok=True)
+                torch.save(
+                    {
+                        "model_state_dict": model.state_dict(),
+                        "optimizer_state_dict": optimizer.state_dict(),
+                        "epoch": epoch,
+                        "best_val_loss": best_val_loss,
+                    },
+                    model_save_path,
+                )
                 print(f"Saved best model to '{model_save_path}'")
             else:
                 epochs_without_improvement += 1
@@ -122,48 +122,6 @@ def train_model(model, train_loader, val_loader, hyps, device):
         print(f"An error occurred during training: {e}")
         raise
 
-def get_debug_dataloaders(train_loader, val_loader):
-    """Extracts a smaller subset of the dataset for debugging and returns new DataLoaders."""
-    def extract_subset(loader, num_images):
-        data, labels = [], []
-        for images, lbls in loader:
-            data.extend(images)
-            labels.extend(lbls)
-            if len(data) >= num_images:
-                return list(zip(data[:num_images], labels[:num_images]))
-        return list(zip(data, labels))
-
-    print(f"Debug mode: Using {debug['train_size'] + debug['val_size']} images and {debug['num_epochs']} epochs")
-    
-    train_subset = extract_subset(train_loader, debug['train_size'])
-    val_subset = extract_subset(val_loader, debug['val_size'])
-
-    train_loader = DataLoader(train_subset, batch_size=debug['batch_size'], shuffle=True)
-    val_loader = DataLoader(val_subset, batch_size=debug['batch_size'], shuffle=False)
-    
-    return train_loader, val_loader
-
-
-def get_hyperparams(model):
-    """
-    Configure hyperparameters including optimizer and scheduler.
-
-    Args:
-        model (torch.nn.Module): The neural network model.
-
-    Returns:
-        dict: Dictionary containing hyperparameters.
-    """
-    try:
-        optimizer = optim.SGD(model.parameters(), momentum=hyperparams['momentum'], lr=hyperparams['learning_rate'], weight_decay=hyperparams['weight_decay'])
-        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', patience=2, factor=0.1)
-
-        hyps = {key: value for key, value in hyperparams.items()}
-        hyps['optimizer'], hyps['scheduler'] = optimizer, scheduler
-        return hyps
-    except KeyError as e:
-        print(f"Missing hyperparameter: {e}")
-        raise
 
 def visualize_losses(train_losses, val_losses):
     """
@@ -174,17 +132,18 @@ def visualize_losses(train_losses, val_losses):
         val_losses (list): List of validation losses.
     """
     try:
-        output_dir = paths['outputs_dir']
+        output_dir = paths["outputs_dir"]
         os.makedirs(output_dir, exist_ok=True)
         loss_plot_path = os.path.join(output_dir, "train_val_loss.png")
 
-        plt.plot(train_losses, label='Train Loss')
-        plt.plot(val_losses, label='Validation Loss')
-        plt.xlabel('Epochs')
-        plt.ylabel('Loss')
+        plt.plot(train_losses, label="Train Loss")
+        plt.plot(val_losses, label="Validation Loss")
+        plt.xlabel("Epochs")
+        plt.ylabel("Loss")
         plt.legend()
-        plt.title('Train and Validation Loss')
+        plt.title("Train and Validation Loss", fontweight="bold")
         plt.grid()
+        plt.tight_layout()
         plt.savefig(loss_plot_path)
 
         print(f"Loss plot saved to: {loss_plot_path}")
@@ -192,29 +151,48 @@ def visualize_losses(train_losses, val_losses):
         print(f"An error occurred while visualizing losses: {e}")
         raise
 
+
 def main():
     """
     Main function to set up and train the model.
     """
     try:
         print("Starting training of VGG16...")
-        vgg_model = load_model()
-        dataloaders = get_cifar_dataloaders()
-        hyps = get_hyperparams(vgg_model)
         device = setup_device()
-        train_loader, val_loader = dataloaders['train'], dataloaders['val']
+        vgg_model = load_model()
+        hyps = get_hyperparams(vgg_model)
 
-        # Ensure DataLoaders are not empty
+        # Handle Debug Mode
+        if debug["on"]:
+            print("Debug mode enabled: Using a smaller dataset for training.")
+            dataloaders = get_cifar_dataloaders()
+            train_loader, val_loader, _ = get_debug_dataloaders(
+                dataloaders["train"], dataloaders["val"], None
+            )
+        else:
+            dataloaders = get_cifar_dataloaders()
+            train_loader, val_loader = dataloaders["train"], dataloaders["val"]
+
+        # Ensure DataLoaders Are Not Empty
+        assert train_loader, "Training DataLoader is missing."
+        assert val_loader, "Validation DataLoader is missing."
         assert len(train_loader) > 0, "Training DataLoader is empty."
         assert len(val_loader) > 0, "Validation DataLoader is empty."
 
-        train_losses, val_losses, _ = train_model(vgg_model, train_loader, val_loader, hyps, device)
+        # Train the Model
+        train_losses, val_losses, _ = train_model(
+            vgg_model, train_loader, val_loader, hyps, device
+        )
+
+        # Visualize Training Loss
         visualize_losses(train_losses, val_losses)
+
     except AssertionError as e:
         print(f"Assertion error: {e}")
     except Exception as e:
         print(f"An error occurred in the main function: {e}")
         raise
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()

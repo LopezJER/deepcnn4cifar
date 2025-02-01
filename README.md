@@ -5,8 +5,14 @@ Cite- https://doi.org/10.48550/arXiv.1409.1556 , Simonyan and Zisserman (2015)
 🌟 deepcnn4cifar 🌟
 This repository implementing deep convolutional neural networks for the CIFAR-10 dataset. This project demonstrates training, evaluation, and visualization of deep learning models for image classification. Dive in to explore the world of computer vision with powerful tools and stunning visualizations.
 
-_VGG16 Architecture:_
-![alt text](image-2.png)
+CIFAR 10 Data Examples:
+![alt text](image-5.png)
+
+Data division:
+![alt text](image-4.png)
+
+_VGG Architecture:_
+![alt text](image-6.png)
 
 **Project Structure:**
 
@@ -30,8 +36,9 @@ deepcnn4cifar/
 │       ├── load_model.py      # Pre-trained model utilities
 ├── tests/                     # Unit tests for the project
 ├── .gitmodules                # Git submodules configuration
-├── .gitignore                 # Git ignore rules
+├── requirements.txt           # Core libraries for the project
 ├── README.md                  # This file
+
 ```
 
 🚀 **Features**

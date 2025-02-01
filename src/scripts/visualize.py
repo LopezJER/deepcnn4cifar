@@ -3,49 +3,156 @@ import subprocess
 import torch
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 import cv2
 import argparse
 from sklearn.metrics import confusion_matrix
-from torchvision import datasets, transforms
 from PIL import Image
-from src.utils.load_data import get_cifar_dataloaders
+from torchvision import datasets, transforms
+from src.utils.load_data import (
+    get_cifar_dataloaders,
+    get_debug_dataloaders,
+    calculate_dataset_statistics,
+)
 from src.utils.load_model import load_model, setup_device
 from src.core.gradcam import GradCAM
-from src.core.config import model_setup, debug, class_names
-from src.scripts.evaluate import get_debug_dataloaders  # Import debug function
+from src.core.config import model_setup, debug, class_names, paths
+from src.scripts.evaluate import get_predictions
 
 
-num_classes = model_setup["num_classes"]
+def visualize_cifar10_with_labels(
+    dataset,
+    classes,
+    num_examples=5,
+    save_path="outputs/cifar10_visualization.png",
+):
+    """
+    Visualizes the CIFAR-10 dataset with each row corresponding to a class
+    and 5 examples per class. Only the original images (without any transformations) are shown.
+
+    Parameters:
+        dataset: The CIFAR-10 dataset (torchvision.datasets).
+        classes: List of class names in CIFAR-10.
+        num_examples: Number of examples per class (default: 5).
+        save_path: Path to save the generated visualization.
+    """
+    try:
+        num_classes = len(classes)
+        fig, axes = plt.subplots(
+            num_classes,
+            num_examples + 1,
+            figsize=((num_examples + 1) * 2, num_classes * 2),
+        )
+        fig.suptitle(
+            "CIFAR-10 Dataset: 10 Classes with 5 Examples Each",
+            fontsize=20,
+            fontweight="bold",
+        )
+
+        # Dictionary to track examples per class
+        examples_collected = {cls: 0 for cls in range(num_classes)}
+
+        for img, label in dataset:
+            if examples_collected[label] < num_examples:
+                row = label
+                col = (
+                    examples_collected[label] + 1
+                )  # Shift by 1 for the class name column
+                ax = axes[row, col]
+
+                # Convert the PIL image to numpy array for plotting
+                img = np.array(img)  # PIL to numpy
+
+                ax.imshow(img)
+                ax.axis("off")
+                examples_collected[label] += 1
+
+                # Add class name to the first column of each row
+                if col == 1:
+                    class_ax = axes[row, 0]
+                    class_ax.axis("off")
+                    class_ax.text(
+                        0.5,
+                        0.5,
+                        classes[row],
+                        fontsize=14,
+                        ha="center",
+                        va="center",
+                        rotation=0,
+                        fontweight="bold",
+                    )
+
+            # Break when we have enough examples
+            if all(v >= num_examples for v in examples_collected.values()):
+                break
+
+        # Turn off all the unused axes
+        for row in range(num_classes):
+            for col in range(num_examples + 1):
+                if col > examples_collected[row]:
+                    axes[row, col].axis("off")
+
+        # Save and display the visualization
+        os.makedirs(os.path.dirname(save_path), exist_ok=True)
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")  # Save the figure
+        print(f"Visualization saved to {save_path}")
+        plt.tight_layout(
+            rect=[0, 0, 1, 0.98]
+        )  # Adjust layout to make space for the title
+        plt.show()
+
+    except Exception as e:
+        print(f"Error in visualize_cifar10_with_labels: {e}")
+
+
+def plot_image_transformation(ax, image, title):
+    """
+    Plots a single image with a title.
+
+    Args:
+        ax (matplotlib.axes.Axes): The axis to plot on.
+        image (numpy array): The image to be displayed.
+        title (str): Title for the image.
+    """
+    ax.imshow(image)
+    ax.set_title(title, fontsize=12)
+    ax.axis("off")
 
 
 def visualize_image_transformations():
     """
     Visualizes CIFAR-10 images before and after transformations.
+    Shows the original image, resized image, and normalized image.
     """
     try:
-        # Load original CIFAR-10 dataset (without transforms)
+        # Load CIFAR-10 original dataset without transformations
+        print("Loading original CIFAR-10 dataset...")
         original_dataset = datasets.CIFAR10(root="./data", train=True, download=True)
 
-        # Define transformations (same as used in training)
-        transform = transforms.Compose(
+        # Define transformations for resized and normalized images
+        dataset_mean, dataset_std = calculate_dataset_statistics()
+
+        resized_transform = transforms.Compose(
+            [transforms.Resize((224, 224)), transforms.ToTensor()]
+        )
+        normalized_transform = transforms.Compose(
             [
                 transforms.Resize((224, 224)),
                 transforms.ToTensor(),
                 transforms.Normalize(
-                    mean=[0.4914, 0.4822, 0.4465], std=[0.2470, 0.2435, 0.2616]
+                    mean=dataset_mean.tolist(), std=dataset_std.tolist()
                 ),
             ]
         )
 
-        # Get class names
+        # Select one image per class using the same indices for both datasets
         class_names = original_dataset.classes
-
-        # Select one image per class
         images_per_class = {}
-        for i in range(len(original_dataset)):
-            image, label = original_dataset[i]
+
+        for idx in range(len(original_dataset)):
+            image, label = original_dataset[idx]
             if label not in images_per_class:
-                images_per_class[label] = image
+                images_per_class[label] = idx
             if len(images_per_class) == len(class_names):
                 break
 
@@ -56,62 +163,52 @@ def visualize_image_transformations():
             constrained_layout=True,
         )
 
-        for idx, (label, image) in enumerate(images_per_class.items()):
-            # Apply transformation
-            transformed_image = transform(image)
+        for idx, (label, img_idx) in enumerate(images_per_class.items()):
+            # Original image
+            original_image = original_dataset[img_idx][0]
+
+            # Resized image
+            resized_image = resized_transform(original_image)
+
+            # Normalized image
+            normalized_image = normalized_transform(original_image)
 
             # Convert images to display format (H, W, C)
-            image_resized = transformed_image.permute(1, 2, 0).numpy()
-            image_normalized_display = np.clip(
-                image_resized * 0.5 + 0.5, 0, 1
-            )  # Convert normalized image back
+            resized_image_np = resized_image.permute(1, 2, 0).numpy()
+            normalized_image_np = normalized_image.permute(1, 2, 0).numpy()
 
-            axes[idx, 0].imshow(image)
-            axes[idx, 0].set_title(f"Original: {class_names[label]}", fontsize=12)
-            axes[idx, 0].axis("off")
+            plot_image_transformation(
+                axes[idx, 0],
+                np.array(original_image),
+                f"Original: {class_names[label]}",
+            )
 
-            axes[idx, 1].imshow(image_resized)
-            axes[idx, 1].set_title("Resized", fontsize=12)
-            axes[idx, 1].axis("off")
-
-            axes[idx, 2].imshow(image_normalized_display)
-            axes[idx, 2].set_title("Normalized", fontsize=12)
-            axes[idx, 2].axis("off")
+            plot_image_transformation(
+                axes[idx, 1], resized_image_np, f"Resized: {class_names[label]}"
+            )
+            plot_image_transformation(
+                axes[idx, 2], normalized_image_np, f"Normalized: {class_names[label]}"
+            )
 
         fig.suptitle(
             "CIFAR-10 Transformations: Original, Resized, and Normalized",
             fontsize=18,
             fontweight="bold",
         )
+
+        # Save the visualization
+        output_path = os.path.join(
+            paths["outputs_dir"], "cifar10_image_transformations.png"
+        )
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")  # Save the figure
+        print(f"Visualization saved to {output_path}")
+
+        # Show the plot
         plt.show()
 
     except Exception as e:
         print(f"Error in visualize_image_transformations: {e}")
-
-
-# Function to generate predictions and true labels
-def get_predictions(model, dataloader, device):
-    """
-    Generates predictions and true labels.
-    """
-    assert model is not None, "Model cannot be None"
-    assert dataloader is not None, "Dataloader cannot be None"
-    assert device is not None, "Device cannot be None"
-
-    try:
-        true_labels = []
-        predicted_labels = []
-        with torch.no_grad():
-            for inputs, labels in dataloader:
-                inputs, labels = inputs.to(device), labels.to(device)
-                outputs = model(inputs)
-                _, preds = torch.max(outputs, 1)
-                true_labels.extend(labels.cpu().numpy())
-                predicted_labels.extend(preds.cpu().numpy())
-        return np.array(true_labels), np.array(predicted_labels)
-    except Exception as e:
-        print(f"Error in get_predictions: {e}")
-        return np.array([]), np.array([])
 
 
 # Function to visualize top mistakes
@@ -384,6 +481,7 @@ def generate_vgg_architecture(architecture="vgg11"):
         print(f"Error compiling LaTeX file {tex_file}: {e}")
 
 
+"""
 def main():
     try:
         # Argument Parser
@@ -450,9 +548,13 @@ def main():
             # Apply debug mode if enabled
             if debug["on"]:
                 print("Debug mode enabled: Using a smaller test dataset.")
-                dataloaders["test"] = get_debug_dataloaders(
-                    test_loader=dataloaders["test"]
-                )[0]
+                dataloaders["train"], dataloaders["val"], dataloaders["test"] = (
+                    get_debug_dataloaders(
+                        train_loader=dataloaders.get("train"),
+                        val_loader=dataloaders.get("val"),
+                        test_loader=dataloaders.get("test"),
+                    )
+                )
         except Exception as e:
             print(f"Error loading dataset: {e}")
             return
@@ -540,6 +642,30 @@ def main():
 
     except Exception as e:
         print(f"Unexpected error in main execution: {e}")
+"""
+
+
+def main():
+    """
+    Main function to call visualization functions.
+    """
+    # Load the original CIFAR-10 dataset (without transformations)
+    print("Loading original CIFAR-10 dataset...")
+    original_dataset = datasets.CIFAR10(root="./data", train=True, download=True)
+
+    """
+    # Call visualization function to visualize CIFAR-10 classes with 5 examples each (using original data)
+    visualize_cifar10_with_labels(
+        dataset=original_dataset,
+        classes=original_dataset.classes,
+        num_examples=5,
+        save_path=os.path.join(
+            paths["outputs_dir"], "cifar10_classes_visualization.png"
+        ),
+    ) 
+    """
+    # Call the visualization function for image transformations (original, resized, normalized)
+    visualize_image_transformations()
 
 
 if __name__ == "__main__":

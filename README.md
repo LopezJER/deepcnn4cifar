@@ -90,6 +90,10 @@ Track and compare model accuracy and loss metrics with detailed graphs.
 5. Visualize Results (with GradCam)<br>
    `python -m src.scripts/visualize.py --image.png`<br>
 
+To run unit tests for data and model loading, simply run:
+   `pytest`<br>
+
+
 References:
 CIFAR-10 Dataset: A dataset of 60,000 32x32 color images in 10 classes.
 Deep Learning Framework: Built using PyTorch/TensorFlow.

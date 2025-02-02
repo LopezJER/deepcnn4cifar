@@ -93,7 +93,7 @@ Track and compare model accuracy and loss metrics with detailed graphs.
    `python -m src.scripts/visualize.py --image.png`<br>
 
 
-*Unit Tests:*
+# Unit Tests:
 To run unit tests for data and model loading, simply run: <br>
    `pytest`<br>
 

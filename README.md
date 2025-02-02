@@ -90,7 +90,9 @@ Track and compare model accuracy and loss metrics with detailed graphs.
 5. Visualize Results (with GradCam)<br>
    `python -m src.scripts/visualize.py --image.png`<br>
 
-To run unit tests for data and model loading, simply run:
+
+**Unit Tests:**
+To run unit tests for data and model loading, simply run: <br>
    `pytest`<br>
 
 

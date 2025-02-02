@@ -1,5 +1,7 @@
 # **Very Deep Convolutional Networks for Large-Scale Image Recognition**
 
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)  
+
 Cite- https://doi.org/10.48550/arXiv.1409.1556 , Simonyan and Zisserman (2015)
 
 🌟 deepcnn4cifar 🌟

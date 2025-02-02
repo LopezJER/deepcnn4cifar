@@ -45,6 +45,15 @@ deepcnn4cifar/
 ├── README.md                  # This file
 
 ```
+**Model Performance**
+
+## Model Performance Comparison
+
+| Model  | Accuracy | Precision | Recall | F1 Score |
+|--------|----------|-----------|--------|----------|
+| VGG11  | 81.61%   | 81.76%    | 81.61% | 81.61%   |
+| VGG16  | 84.74%   | 84.76%    | 84.74% | 84.73%   |
+
 
 🚀 **Features**
 

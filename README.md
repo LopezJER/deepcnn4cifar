@@ -45,9 +45,7 @@ deepcnn4cifar/
 ├── README.md                  # This file
 
 ```
-**Model Performance**
-
-## Model Performance Comparison
+🚀 **Model Performance**
 
 | Model  | Accuracy | Precision | Recall | F1 Score |
 |--------|----------|-----------|--------|----------|
@@ -55,7 +53,7 @@ deepcnn4cifar/
 | VGG16  | 84.74%   | 84.76%    | 84.74% | 84.73%   |
 
 
-🚀 **Features**
+🧩 **Features**
 
 🎨 Visualizations
 Our visualizations provide detailed insights into training and evaluation. Below is an example of a training accuracy vs. epochs chart:

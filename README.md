@@ -1,8 +1,7 @@
 # **Very Deep Convolutional Networks for Large-Scale Image Recognition**
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)  
-[![Paper](https://img.shields.io/badge/arXiv-1409.1556-B31B1B.svg)](https://doi.org/10.48550/arXiv.1409.1556) <br>
-Cite: [Simonyan and Zisserman (2015)](https://doi.org/10.48550/arXiv.1409.1556)
+[![Paper](https://img.shields.io/badge/ICLR-2015-blue)](https://www.robots.ox.ac.uk/~vgg/publications/2015/Simonyan15/)  
 
 🌟 deepcnn4cifar 🌟
 This repository implementing deep convolutional neural networks for the CIFAR-10 dataset. This project demonstrates training, evaluation, and visualization of deep learning models for image classification. Dive in to explore the world of computer vision with powerful tools and stunning visualizations.

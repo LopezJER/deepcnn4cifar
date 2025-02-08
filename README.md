@@ -79,25 +79,45 @@ You can easily adjust the depth and parameters of the vggs in src/core/model.py.
 Utilize scripts/visualize.py to generate interactive charts and matrices.
 Track and compare model accuracy and loss metrics with detailed graphs.
 
-**How To Use:**
+# How To Use:
 
-1. Clone the Repository <br>
-   `git clone https://github.com/yourusername/deepcnn4cifar.git` <br>
-   `cd deepcnn4cifar`<br>
-2. Install Dependencies<br>
-   `pip install -r requirements.txt`<br>
-   Ensure LaTeX is installed for generating architecture diagrams:<br>
-   `pdflatex --version`<br>
+1. **Clone the Repository**  
+   `git clone https://github.com/yourusername/deepcnn4cifar.git`  
+   `cd deepcnn4cifar`  
 
-3. Train a model on CIFAR-10 using:<br>
-   `python -m src.scripts.train.py`<br>
+2. **Install Virtualenv and Create a Virtual Environment**  
+   Install `virtualenv` if you don't have it already:  
+   `pip install virtualenv`  
 
-4. Evaluate the Model<br>
-   `python -m src.scripts.evaluate.py`<br>
+   Create a virtual environment:  
+   `python3 -m venv venv`  
 
-5. Visualize Results (with GradCam)<br>
-   `python -m src.scripts/visualize.py --image.png`<br>
+   Activate the virtual environment:  
+   `source venv/bin/activate`  
+   *(You should see `(venv)` as a prefix to all commands after activation)*  
 
+   Update `pip` to the latest version:  
+   `python3 -m pip install --upgrade pip`
+
+3. **Install Project Dependencies**  
+   Install the required packages for the project:  
+   `pip install -e .`  
+
+4. **Install Development Dependencies (Optional)**  
+   Install additional packages for linting, testing, and other developer tools:  
+   `pip install -e .[dev]`  
+
+5. **Run Training & Evaluation Pipelne**  
+   To start training the model, run the following command:  
+   `python -m main.py`  
+
+7. **Visualize Results (with GradCam)**  
+   To visualize results using GradCam on an image, run:  
+   `python -m src.scripts.visualize.py --image.png`
+
+<br>
+Note: All relevant settings and hyperparams can be modified under src/core/config.py
+<br>
 
 # Unit Tests:
 To run unit tests for data and model loading, simply run: <br>

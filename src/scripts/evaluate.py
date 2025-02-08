@@ -1,5 +1,4 @@
 import torch
-import os
 from sklearn.metrics import (
     precision_recall_fscore_support,
     confusion_matrix,
@@ -8,10 +7,13 @@ from sklearn.metrics import (
 )
 from sklearn.preprocessing import label_binarize
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
 import os
-from src.core.config import model_setup, paths, debug
+import seaborn as sns
+import matplotlib.pyplot as plt
+import logging
+from src.core.model import *
+from torchvision import transforms
+from src.core.config import model_setup, debug, class_names
 from src.utils.load_model import load_model
 from src.utils.load_data import get_cifar_dataloaders
 from torch.utils.data import DataLoader
@@ -19,19 +21,40 @@ from collections import defaultdict
 from src.scripts.visualize import visualize_mistakes_images_grouped_with_row_titles
 
 
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 class DebugDataset(torch.utils.data.Dataset):
     """Custom dataset to retain transforms and attributes when using a subset."""
 
     def __init__(self, original_dataset, subset_data):
+        """
+        Initializes the DebugDataset.
+
+        Args:
+            original_dataset (torch.utils.data.Dataset): The original dataset to extract the transform and classes from.
+            subset_data (list): The subset of data (images, labels) to use for debugging.
+        """
         self.original_dataset = original_dataset  # Keep reference to original dataset
         self.data = subset_data  # Store the reduced subset
         self.transform = getattr(original_dataset, "transform", None)  # Keep transform
         self.classes = getattr(original_dataset, "classes", None)  # Retain class names
 
     def __len__(self):
+        """Returns the size of the subset."""
         return len(self.data)
 
     def __getitem__(self, idx):
+        """
+        Returns the image and label at the specified index.
+
+        Args:
+            idx (int): Index of the sample to retrieve.
+
+        Returns:
+            tuple: (image, label) where image is the transformed image and label is the ground truth label.
+        """
         image, label = self.data[idx]
 
         # Convert Tensor to PIL Image if needed
@@ -45,8 +68,26 @@ class DebugDataset(torch.utils.data.Dataset):
 
 
 def get_debug_dataloader(test_loader):
-    """Extracts a smaller subset of the dataset for debugging and returns new DataLoaders."""
+    """
+    Extracts a smaller subset of the dataset for debugging and returns new DataLoaders.
+
+    Args:
+        test_loader (DataLoader): The original DataLoader containing the test data.
+
+    Returns:
+        DataLoader: A new DataLoader for the subset of test data.
+    """
     def extract_subset(loader, num_images):
+        """
+        Extracts a subset of images and labels from the loader.
+
+        Args:
+            loader (DataLoader): The DataLoader to extract from.
+            num_images (int): The number of images to extract.
+
+        Returns:
+            list: A list of (image, label) pairs.
+        """
         data, labels = [], []
         for images, lbls in loader:
             data.extend(images)
@@ -55,7 +96,7 @@ def get_debug_dataloader(test_loader):
                 return list(zip(data[:num_images], labels[:num_images]))
         return list(zip(data, labels))
 
-    print(f"Debug mode: Evaluating with {debug['test_size']} images")
+    logger.info(f"Debug mode: Evaluating with {debug['test_size']} images")
     
     test_subset = extract_subset(test_loader, debug['test_size'])
     test_loader = DataLoader(test_subset, batch_size=debug['batch_size'], shuffle=False)
@@ -63,10 +104,19 @@ def get_debug_dataloader(test_loader):
     return test_loader
 
 
-
-
-# Evaluate the model
 def evaluate_model(model, dataloader, device, num_classes):
+    """
+    Evaluates the model on the given dataset.
+
+    Args:
+        model (torch.nn.Module): The model to evaluate.
+        dataloader (DataLoader): The DataLoader containing the test data.
+        device (torch.device): The device to run the model on.
+        num_classes (int): The number of classes in the dataset.
+
+    Returns:
+        tuple: Accuracy, average loss, precision, recall, F1 score, confusion matrix, labels one-hot, and probabilities.
+    """
     try:
         assert model is not None, "Model is None."
         assert dataloader is not None, "Dataloader is None."
@@ -115,100 +165,29 @@ def evaluate_model(model, dataloader, device, num_classes):
             np.array(all_probs),
         )
     except AssertionError as e:
-        print(f"Assertion error during evaluation: {e}")
+        logger.error(f"Assertion error during evaluation: {e}")
     except Exception as e:
-        print(f"Unexpected error during model evaluation: {e}")
+        logger.error(f"Unexpected error during model evaluation: {e}")
         raise
 
 
-# Function to generate predictions and true labels
-def get_predictions(model, dataloader, device):
+def plot_confusion_matrix(cm, class_names):
     """
-    Generates predictions and true labels.
-    """
-    assert model is not None, "Model cannot be None"
-    assert dataloader is not None, "Dataloader cannot be None"
-    assert device is not None, "Device cannot be None"
-
-    try:
-        true_labels = []
-        predicted_labels = []
-        with torch.no_grad():
-            for inputs, labels in dataloader:
-                inputs, labels = inputs.to(device), labels.to(device)
-                outputs = model(inputs)
-                _, preds = torch.max(outputs, 1)
-                true_labels.extend(labels.cpu().numpy())
-                predicted_labels.extend(preds.cpu().numpy())
-        return np.array(true_labels), np.array(predicted_labels)
-    except Exception as e:
-        print(f"Error in get_predictions: {e}")
-        return np.array([]), np.array([])
-
-
-def calculate_confusion_matrix(true_labels, predicted_labels):
-    """
-    Computes the confusion matrix.
+    Plots the confusion matrix.
 
     Args:
-        true_labels (np.ndarray): True labels.
-        predicted_labels (np.ndarray): Predicted labels.
-
-    Returns:
-        np.ndarray: Confusion matrix.
-    """
-    try:
-        cm = confusion_matrix(true_labels, predicted_labels)
-        return cm
-    except Exception as e:
-        print(f"Error calculating confusion matrix: {e}")
-        return None
-
-
-def calculate_roc_curve(all_labels_oh, all_probs, class_names):
-    """
-    Computes ROC curve data for each class.
-
-    Args:
-        all_labels_oh (np.ndarray): One-hot encoded true labels.
-        all_probs (np.ndarray): Model predicted probabilities.
+        cm (ndarray): The confusion matrix.
         class_names (list): List of class names.
 
-    Returns:
-        dict: False positive rate (fpr), true positive rate (tpr), and AUC values.
+    Raises:
+        AssertionError: If the confusion matrix is not square or class names don't match.
     """
     try:
-        assert (
-            all_labels_oh.shape == all_probs.shape
-        ), "Mismatch between labels and probabilities."
+        assert cm.shape[0] == cm.shape[1], "Confusion matrix must be square."
+        assert len(class_names) == cm.shape[0], "Class names must match confusion matrix dimensions."
 
-        fpr, tpr, roc_auc = {}, {}, {}
-        for i, class_name in enumerate(class_names):
-            fpr[i], tpr[i], _ = roc_curve(all_labels_oh[:, i], all_probs[:, i])
-            roc_auc[i] = auc(fpr[i], tpr[i])
-
-        return {"fpr": fpr, "tpr": tpr, "roc_auc": roc_auc}
-    except Exception as e:
-        print(f"Error calculating ROC curve: {e}")
-        return None
-
-
-def plot_confusion_matrix(cm, class_names, save_path):
-    """
-    Plots and saves the confusion matrix as a heatmap with proper positioning.
-
-    Args:
-        cm (np.ndarray): Confusion matrix.
-        class_names (list): Class names.
-        save_path (str): Path to save the plot.
-    """
-    try:
-        os.makedirs(
-            os.path.dirname(save_path), exist_ok=True
-        )  # Ensure output directory exists
-
-        plt.figure(figsize=(12, 10))  # Increase figure size for better positioning
-        heatmap_obj = sns.heatmap(  # Avoid using 'heatmap' to prevent name conflicts
+        plt.figure(figsize=(10, 8))
+        sns.heatmap(
             cm,
             annot=True,
             fmt="d",
@@ -216,122 +195,80 @@ def plot_confusion_matrix(cm, class_names, save_path):
             xticklabels=class_names,
             yticklabels=class_names,
         )
-        plt.xlabel("Predicted", fontweight="bold", fontsize=14)
-        plt.ylabel("True", fontweight="bold", fontsize=14)
-        plt.title("Confusion Matrix", fontsize=16, fontweight="bold", pad=20)
-
-        # Add "Sample Amount" text beside the color bar
-        colorbar = heatmap_obj.collections[0].colorbar
-        colorbar.ax.set_ylabel("Sample Amount", fontsize=12, fontweight="bold")
-
-        # Adjust spacing to center the plot
-        plt.subplots_adjust(left=0.05, right=1, top=0.95, bottom=0.05)
-        plt.tight_layout
-        plt.savefig(save_path)  # Save the plot as PNG
-        print(f"Confusion matrix saved to {save_path}")
-        plt.close()  # Close plot to free memory
+        plt.xlabel("Predicted")
+        plt.ylabel("True")
+        plt.title("Confusion Matrix")
+        plt.show()
+    except AssertionError as e:
+        logger.error(f"Assertion error in confusion matrix plot: {e}")
     except Exception as e:
-        print(f"Error in plotting confusion matrix: {e}")
+        logger.error(f"Unexpected error in confusion matrix plot: {e}")
+        raise
 
 
-def plot_roc_curves(roc_data, class_names, save_path):
+def plot_roc_curves(all_labels_oh, all_probs, class_names):
     """
-    Plots and saves ROC curves for multi-class classification.
+    Plots the ROC curves for each class.
 
     Args:
-        roc_data (dict): Dictionary containing fpr, tpr, and roc_auc for each class.
+        all_labels_oh (ndarray): One-hot encoded true labels.
+        all_probs (ndarray): Predicted probabilities.
         class_names (list): List of class names.
-        save_path (str): Path to save the plot.
+
+    Raises:
+        AssertionError: If the shape of labels and probabilities do not match.
     """
     try:
-        os.makedirs(
-            os.path.dirname(save_path), exist_ok=True
-        )  # Ensure output directory exists
+        assert all_labels_oh.shape == all_probs.shape, "Shape mismatch between labels and probabilities."
+
+        fpr, tpr, roc_auc = {}, {}, {}
+        for i, class_name in enumerate(class_names):
+            fpr[i], tpr[i], _ = roc_curve(all_labels_oh[:, i], all_probs[:, i])
+            roc_auc[i] = auc(fpr[i], tpr[i])
 
         plt.figure(figsize=(10, 8))
         for i, class_name in enumerate(class_names):
-            plt.plot(
-                roc_data["fpr"][i],
-                roc_data["tpr"][i],
-                label=f"{class_name} (AUC = {roc_data['roc_auc'][i]:.2f})",
-            )
+            plt.plot(fpr[i], tpr[i], label=f"{class_name} (AUC = {roc_auc[i]:.2f})")
+
         plt.plot([0, 1], [0, 1], "k--", label="Random Guess (AUC = 0.50)")
-        plt.xlabel("False Positive Rate", fontweight="bold")
-        plt.ylabel("True Positive Rate", fontweight="bold")
-        plt.title("ROC Curves", fontsize=16, fontweight="bold")
+        plt.xlabel("False Positive Rate")
+        plt.ylabel("True Positive Rate")
+        plt.title("ROC Curves")
         plt.legend(loc="lower right")
         plt.grid(alpha=0.3)
-        plt.tight_layout()
-        plt.savefig(save_path)  # Save the plot as PNG
-        print(f"ROC curves saved to {save_path}")
-        plt.close()  # Close plot to free memory
+        plt.show()
+    except AssertionError as e:
+        logger.error(f"Assertion error in ROC curve plot: {e}")
     except Exception as e:
-        print(f"Error in plotting ROC curves: {e}")
+        logger.error(f"Unexpected error in ROC curve plot: {e}")
+        raise
 
-
-if __name__ == "__main__":
+def run_evaluate_pipeline(model =  None):
     try:
         # Load configuration and model
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        print(f"Using device: {device}")
+        logger.info(f"Using device: {device}")
 
-        model = load_model()
-        assert model is not None, "Failed to load model."
+        if model is None:
+            model = load_model()
+
+        # Load test data
+        test_loader = get_cifar_dataloaders(include_test=True, test_only=True)
+        assert test_loader is not None, "Test DataLoader is None."
 
         # **Apply Debug Mode if Enabled**
         if debug["on"]:
-            print("Debug mode enabled: Using a smaller test dataset.")
-            test_loader = get_debug_dataloader(
-                test_loader=test_loader["test"]
-            )
+            logger.info("Debug mode enabled: Using a smaller test dataset.")
+            test_loader = get_debug_dataloader(test_loader=test_loader["test"])
 
         # Evaluate model
         evaluation_results = evaluate_model(
             model, test_loader, device, num_classes=model_setup["num_classes"]
         )
-        if evaluation_results:
-            accuracy, loss, precision, recall, f1, cm, labels_oh, probs = (
-                evaluation_results
-            )
-
-            print(f"Accuracy: {accuracy:.2f}%")
-            print(f"Loss: {loss:.4f}")
-            print(f"Precision: {precision:.4f}")
-            print(f"Recall: {recall:.4f}")
-            print(f"F1 Score: {f1:.4f}")
-
-            plot_confusion_matrix(cm, class_names)
-            plot_roc_curves(labels_oh, probs, class_names)
-
-        # First, we need to get true and predicted labels from model predictions
-        true_labels = np.argmax(labels_oh, axis=1)  # Convert one-hot back to class indices
-        predicted_labels = np.argmax(probs, axis=1)  # Get predicted classes from probabilities
-
-        # Find the top mistake categories
-        mistake_counts = defaultdict(int)
-        for true_idx, pred_idx in zip(true_labels, predicted_labels):
-            if true_idx != pred_idx:
-                mistake_pair = (class_names[true_idx], class_names[pred_idx])
-                mistake_counts[mistake_pair] += 1
-
-        # Sort mistakes by frequency
-        top_mistakes = [(true, pred, count) 
-                        for (true, pred), count in sorted(mistake_counts.items(), 
-                                                        key=lambda x: x[1], 
-                                                        reverse=True)][:5]  # Show top 5 mistakes
-
-        # Call the visualization function
-        visualize_mistakes_images_grouped_with_row_titles(
-            true_labels=true_labels,
-            predicted_labels=predicted_labels,
-            test_dataset=test_loader.dataset,  # Get the dataset from the DataLoader
-            top_mistakes=top_mistakes,
-            class_names=class_names,
-            images_per_category=5  # Show 5 examples per mistake category
-        )
-
-    except AssertionError as e:
-        print(f"Assertion error in main execution: {e}")
+        return evaluation_results
     except Exception as e:
-        print(f"Unexpected error in main execution: {e}")
+        logger.error(f"Unexpected error in main execution: {e}")
         raise
+
+if __name__ == "__main__":
+    run_evaluate_pipeline()

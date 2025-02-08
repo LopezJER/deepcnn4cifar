@@ -4,3 +4,4 @@ outputs/
 data/
 *.pyc
 *-workspace
+venv/

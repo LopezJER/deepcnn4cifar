@@ -3,14 +3,22 @@ from torch import nn
 import time
 import os
 import matplotlib.pyplot as plt
+import logging
 from src.core.config import model_setup, paths, debug
-from src.utils.training_utils import get_hyperparams  # Import the function
+from src.utils.load_model import get_hyperparams  # Import the function
 from src.utils.load_model import load_model, setup_device
 from src.utils.load_data import (
     get_cifar_dataloaders,
     get_debug_dataloaders,
 )
 
+# Set up logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+console_handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
 
 # Function to train the model
 def train_model(model, train_loader, val_loader, hyps, device):
@@ -42,7 +50,7 @@ def train_model(model, train_loader, val_loader, hyps, device):
 
         for epoch in range(num_epochs):
             epoch_start_time = time.time()
-            print(f"Epoch [{epoch+1}/{num_epochs}]")
+            logger.info(f"Epoch [{epoch+1}/{num_epochs}]")
             model.train()
 
             train_running_loss = 0.0
@@ -63,7 +71,7 @@ def train_model(model, train_loader, val_loader, hyps, device):
                 optimizer.step()
 
                 train_running_loss += loss.item()
-                print(f"Batch [{i+1}/{len(train_loader)}] - Loss: {loss.item():.4f}")
+                logger.info(f"Batch [{i+1}/{len(train_loader)}] - Loss: {loss.item():.4f}")
 
             # Validation Phase
             model.eval()
@@ -88,7 +96,7 @@ def train_model(model, train_loader, val_loader, hyps, device):
             train_losses.append(average_train_loss)
             val_losses.append(average_val_loss)
 
-            print(
+            logger.info(
                 f"Train Loss: {average_train_loss:.4f}, Validation Loss: {average_val_loss:.4f}, Time: {epoch_time:.2f}s"
             )
 
@@ -109,17 +117,17 @@ def train_model(model, train_loader, val_loader, hyps, device):
                     },
                     model_save_path,
                 )
-                print(f"Saved best model to '{model_save_path}'")
+                logger.info(f"Saved best model to '{model_save_path}'")
             else:
                 epochs_without_improvement += 1
                 if epochs_without_improvement >= patience:
-                    print(f"Early stopping at epoch {epoch+1}")
+                    logger.info(f"Early stopping at epoch {epoch+1}")
                     break
 
         return train_losses, val_losses, epoch_times
 
     except Exception as e:
-        print(f"An error occurred during training: {e}")
+        logger.error(f"An error occurred during training: {e}")
         raise
 
 
@@ -146,25 +154,25 @@ def visualize_losses(train_losses, val_losses):
         plt.tight_layout()
         plt.savefig(loss_plot_path)
 
-        print(f"Loss plot saved to: {loss_plot_path}")
+        logger.info(f"Loss plot saved to: {loss_plot_path}")
     except Exception as e:
-        print(f"An error occurred while visualizing losses: {e}")
+        logger.error(f"An error occurred while visualizing losses: {e}")
         raise
 
 
-def main():
+def run_train_pipeline():
     """
     Main function to set up and train the model.
     """
     try:
-        print("Starting training of VGG16...")
+        logger.info("Starting training of VGG16...")
         device = setup_device()
         vgg_model = load_model()
         hyps = get_hyperparams(vgg_model)
 
         # Handle Debug Mode
         if debug["on"]:
-            print("Debug mode enabled: Using a smaller dataset for training.")
+            logger.info("Debug mode enabled: Using a smaller dataset for training.")
             dataloaders = get_cifar_dataloaders()
             train_loader, val_loader, _ = get_debug_dataloaders(
                 dataloaders["train"], dataloaders["val"], None
@@ -184,15 +192,14 @@ def main():
             vgg_model, train_loader, val_loader, hyps, device
         )
 
-        # Visualize Training Loss
-        visualize_losses(train_losses, val_losses)
-
     except AssertionError as e:
-        print(f"Assertion error: {e}")
+        logger.error(f"Assertion error: {e}")
     except Exception as e:
-        print(f"An error occurred in the main function: {e}")
+        logger.error(f"An error occurred in the main function: {e}")
         raise
+
+    return vgg_model, train_losses, val_losses  # we need this variable if calling from main
 
 
 if __name__ == "__main__":
-    main()
+    run_train_pipeline()

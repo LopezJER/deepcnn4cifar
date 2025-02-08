@@ -40,7 +40,7 @@ deepcnn4cifar/
 │       ├── load_model.py      # Pre-trained model utilities
 ├── tests/                     # Unit tests for the project
 ├── .gitmodules                # Git submodules configuration
-├── requirements.txt           # Core libraries for the project
+├── pyproject.toml             # Contains core libraries for the project
 ├── README.md                  # This file
 
 ```

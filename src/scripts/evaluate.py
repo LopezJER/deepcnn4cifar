@@ -18,7 +18,6 @@ from src.utils.load_model import load_model
 from src.utils.load_data import get_cifar_dataloaders
 from torch.utils.data import DataLoader
 from collections import defaultdict
-from src.scripts.visualize import visualize_mistakes_images_grouped_with_row_titles
 
 
 # Configure logging

@@ -1,5 +1,6 @@
 import os
 import subprocess
+import shutil
 import torch
 import random
 import numpy as np
@@ -14,7 +15,7 @@ from src.utils.load_data import (
 )
 from src.utils.load_model import load_model
 from src.core.gradcam import GradCAM
-from src.core.config import paths, model_setup, debug, class_names
+from src.core.config import paths, model_setup, debug, class_names, latex_path
 import logging
 from torch.utils.data import DataLoader
 from src.scripts.evaluate import evaluate_model
@@ -199,6 +200,152 @@ def visualize_image_transformations():
 
     except Exception as e:
         logger.error(f"Error in visualize_image_transformations: {e}")
+
+
+def plot_data_split(dataset_path="data", output_path="outputs/data_split.png"):
+    """
+    Automatically determines the dataset split (Train, Validation, Test) and plots it beautifully.
+
+    Args:
+        dataset_path (str): Path where CIFAR-10 is stored/downloaded.
+        output_path (str): Path to save the output image.
+    """
+    # Load CIFAR-10 dataset (Only to determine sizes)
+    transform = transforms.ToTensor()
+    full_dataset = datasets.CIFAR10(
+        root=dataset_path, train=True, download=True, transform=transform
+    )
+
+    # Train-Validation Split Ratio (from config)
+    train_size = int((1 - model_setup["val_split"]) * len(full_dataset))
+    val_size = len(full_dataset) - train_size
+
+    # Load CIFAR-10 test set
+    test_dataset = datasets.CIFAR10(
+        root=dataset_path, train=False, download=True, transform=transform
+    )
+    test_size = len(test_dataset)
+
+    # Data labels and sizes
+    labels = ["Train", "Validation", "Test"]
+    sizes = [train_size, val_size, test_size]
+    colors = [
+        "firebrick",
+        "teal",
+        "m",
+    ]  # Modern color palette (Blue, Orange, Green)
+
+    # Plot pie chart with improved aesthetics
+    fig, ax = plt.subplots(figsize=(7, 7))
+    wedges, texts, autotexts = ax.pie(
+        sizes,
+        labels=labels,
+        colors=colors,
+        autopct="%1.1f%%",
+        startangle=140,
+        textprops={"fontsize": 14, "fontweight": "bold"},
+        wedgeprops={"edgecolor": "white", "linewidth": 2, "antialiased": True},
+        pctdistance=0.85,  # Moves percentage inside slices
+    )
+
+    # Style improvements
+    plt.setp(
+        autotexts, size=13, weight="bold", color="white"
+    )  # Style percentage labels
+    plt.setp(texts, size=14)  # Style labels
+
+    # Add circle to make it a donut chart for better aesthetics
+    center_circle = plt.Circle((0, 0), 0.70, fc="white")
+    fig.gca().add_artist(center_circle)
+
+    # Title settings
+    plt.title("Dataset Split", fontsize=18, fontweight="bold", pad=20)
+
+    # Ensure output directory exists
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    # Save the figure
+    plt.savefig(output_path, dpi=300, bbox_inches="tight", transparent=True)
+    print(f"Figure saved as {output_path}")
+    plt.show()
+
+
+def generate_vgg_visualization(model_type, output_dir="outputs"):
+    """
+    Generates the VGG network architecture visualization using LaTeX and moves the output to the specified folder.
+
+    Args:
+        model_type (str): The model type, either "vgg11" or "vgg16".
+        output_dir (str): Directory to save the generated PDF.
+    """
+
+    # Validate model type
+    if model_type not in latex_path:
+        print(f"Error: Model type '{model_type}' not found in config!")
+        return
+
+    # Get the LaTeX file path
+    latex_file = os.path.join("assets", latex_path[model_type])
+
+    # Ensure the LaTeX file exists
+    if not os.path.exists(latex_file):
+        print(f"Error: LaTeX file '{latex_file}' not found!")
+        return
+
+    # Ensure pdflatex is installed
+    try:
+        subprocess.run(
+            ["pdflatex", "--version"],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+    except FileNotFoundError:
+        print(
+            "Error: 'pdflatex' is not installed. Please install TeX Live or MiKTeX."
+        )
+        return
+
+    # Ensure output directory exists
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Extract filename without extension
+    latex_filename = os.path.basename(latex_file)  # e.g., 'vgg11_template.tex'
+    pdf_filename = (
+        os.path.splitext(latex_filename)[0] + ".pdf"
+    )  # e.g., 'vgg11_template.pdf'
+
+    # Move into assets directory to run LaTeX with correct paths
+    assets_dir = os.path.dirname(latex_file)
+    os.chdir(assets_dir)  # Change working directory to 'assets/'
+
+    try:
+        # Run LaTeX compilation twice for proper rendering
+        subprocess.run(
+            ["pdflatex", "-interaction=nonstopmode", latex_filename], check=True
+        )
+        subprocess.run(
+            ["pdflatex", "-interaction=nonstopmode", latex_filename], check=True
+        )
+    except subprocess.CalledProcessError:
+        print(
+            f"Error during LaTeX compilation for '{latex_filename}'. Check your LaTeX code."
+        )
+        os.chdir("..")  # Return to original directory
+        return
+
+    # Move back to the original directory
+    os.chdir("..")
+
+    # Move the generated PDF to the output directory
+    pdf_source_path = os.path.join(assets_dir, pdf_filename)
+    pdf_output_path = os.path.join(output_dir, pdf_filename)
+
+    if os.path.exists(pdf_source_path):
+        shutil.move(pdf_source_path, pdf_output_path)
+        print(f"PDF successfully generated and moved to: {pdf_output_path}")
+    else:
+        print(f"Error: '{pdf_filename}' was not generated. Check LaTeX errors.")
 
 
 # Function to visualize top mistakes
@@ -460,7 +607,7 @@ def visualize_most_active_feature_maps(
     cbar.set_label("Activation Intensity", fontsize=12, fontweight="bold")
 
     # **Adjust Layout**
-    plt.tight_layout(rect=[0, 0., 0.9, 0.95])  # Space for colorbar
+    plt.tight_layout(rect=[0, 0.0, 0.9, 0.95])  # Space for colorbar
     # Save the figure
     fig.savefig("outputs/feature_maps.png", bbox_inches="tight", dpi=300)
     print("Feature maps saved to outputs/feature_maps.png")
@@ -732,11 +879,17 @@ def run_visualization_pipeline():
                 "conv2d_block5",
             ],
             num_feature_maps=5,
-        )"""
+        )
+
 
         # Run Grad-CAM visualization on 5 random images
         visualize_gradcam_results(model, test_loader.dataset, class_names, layer_name='conv2d_block5.4', output_path="outputs/gradcam_results.png")
         logger.info("Visualization pipeline completed successfully.")
+
+        plot_data_split()"""
+
+        generate_vgg_visualization("vgg11")  # Generates VGG-11 PDF
+        generate_vgg_visualization("vgg16")  # Generates VGG-16 PDF
 
     except Exception as e:
         logger.error(f"Error in visualization pipeline: {e}")

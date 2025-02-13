@@ -49,3 +49,5 @@ class_names = [
     "Ship",
     "Truck",
 ]
+
+latex_path = {"vgg16": "vgg16_template.tex", "vgg11": "vgg11_template.tex"}

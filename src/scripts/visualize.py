@@ -5,7 +5,6 @@ import torch
 import random
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
 import cv2
 from torchvision import datasets, transforms
 from src.utils.load_data import (
@@ -17,7 +16,6 @@ from src.utils.load_model import load_model
 from src.core.gradcam import GradCAM
 from src.core.config import paths, model_setup, debug, class_names, latex_path
 import logging
-from torch.utils.data import DataLoader
 from src.scripts.evaluate import evaluate_model
 
 # Configure logger
@@ -301,9 +299,7 @@ def generate_vgg_visualization(model_type, output_dir="outputs"):
             stderr=subprocess.DEVNULL,
         )
     except FileNotFoundError:
-        print(
-            "Error: 'pdflatex' is not installed. Please install TeX Live or MiKTeX."
-        )
+        print("Error: 'pdflatex' is not installed. Please install TeX Live or MiKTeX.")
         return
 
     # Ensure output directory exists
@@ -826,10 +822,12 @@ def run_visualization_pipeline():
 
             test_loader = dataloaders["test"]
 
-        """# Run visualization of CIFAR-10 images
+        # Run visualization of CIFAR-10 images
         logger.info("Running visualize_cifar10_with_labels()...")
-        visualize_cifar10_with_labels(class_names, num_examples=5, save_path="outputs/cifar10_visualization.png")
-        
+        visualize_cifar10_with_labels(
+            class_names, num_examples=5, save_path="outputs/cifar10_visualization.png"
+        )
+
         # Run visualization of image transformations
         logger.info("Running visualize_image_transformations()...")
         visualize_image_transformations()
@@ -870,7 +868,9 @@ def run_visualization_pipeline():
 
         visualize_most_active_feature_maps(
             model,
-            image, label, class_names,  # Pass a single image, not the dataset
+            image,
+            label,
+            class_names,  # Pass a single image, not the dataset
             layer_names=[
                 "conv2d_block1",
                 "conv2d_block2",
@@ -881,12 +881,17 @@ def run_visualization_pipeline():
             num_feature_maps=5,
         )
 
-
         # Run Grad-CAM visualization on 5 random images
-        visualize_gradcam_results(model, test_loader.dataset, class_names, layer_name='conv2d_block5.4', output_path="outputs/gradcam_results.png")
+        visualize_gradcam_results(
+            model,
+            test_loader.dataset,
+            class_names,
+            layer_name="conv2d_block5.4",
+            output_path="outputs/gradcam_results.png",
+        )
         logger.info("Visualization pipeline completed successfully.")
 
-        plot_data_split()"""
+        plot_data_split()
 
         generate_vgg_visualization("vgg11")  # Generates VGG-11 PDF
         generate_vgg_visualization("vgg16")  # Generates VGG-16 PDF

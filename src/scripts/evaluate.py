@@ -7,13 +7,13 @@ from sklearn.metrics import (
 )
 from sklearn.preprocessing import label_binarize
 import numpy as np
-import os
+
 import seaborn as sns
 import matplotlib.pyplot as plt
 import logging
 from src.core.model import *
 from torchvision import transforms
-from src.core.config import model_setup, debug, class_names
+from src.core.config import model_setup, debug
 from src.utils.load_model import load_model
 from src.utils.load_data import get_cifar_dataloaders
 from torch.utils.data import DataLoader
@@ -23,6 +23,7 @@ from collections import defaultdict
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 class DebugDataset(torch.utils.data.Dataset):
     """Custom dataset to retain transforms and attributes when using a subset."""
@@ -76,6 +77,7 @@ def get_debug_dataloader(test_loader):
     Returns:
         DataLoader: A new DataLoader for the subset of test data.
     """
+
     def extract_subset(loader, num_images):
         """
         Extracts a subset of images and labels from the loader.
@@ -96,10 +98,10 @@ def get_debug_dataloader(test_loader):
         return list(zip(data, labels))
 
     logger.info(f"Debug mode: Evaluating with {debug['test_size']} images")
-    
-    test_subset = extract_subset(test_loader, debug['test_size'])
-    test_loader = DataLoader(test_subset, batch_size=debug['batch_size'], shuffle=False)
-    
+
+    test_subset = extract_subset(test_loader, debug["test_size"])
+    test_loader = DataLoader(test_subset, batch_size=debug["batch_size"], shuffle=False)
+
     return test_loader
 
 
@@ -183,7 +185,9 @@ def plot_confusion_matrix(cm, class_names):
     """
     try:
         assert cm.shape[0] == cm.shape[1], "Confusion matrix must be square."
-        assert len(class_names) == cm.shape[0], "Class names must match confusion matrix dimensions."
+        assert (
+            len(class_names) == cm.shape[0]
+        ), "Class names must match confusion matrix dimensions."
 
         plt.figure(figsize=(10, 8))
         sns.heatmap(
@@ -218,7 +222,9 @@ def plot_roc_curves(all_labels_oh, all_probs, class_names):
         AssertionError: If the shape of labels and probabilities do not match.
     """
     try:
-        assert all_labels_oh.shape == all_probs.shape, "Shape mismatch between labels and probabilities."
+        assert (
+            all_labels_oh.shape == all_probs.shape
+        ), "Shape mismatch between labels and probabilities."
 
         fpr, tpr, roc_auc = {}, {}, {}
         for i, class_name in enumerate(class_names):
@@ -242,7 +248,8 @@ def plot_roc_curves(all_labels_oh, all_probs, class_names):
         logger.error(f"Unexpected error in ROC curve plot: {e}")
         raise
 
-def run_evaluate_pipeline(model =  None):
+
+def run_evaluate_pipeline(model=None):
     try:
         # Load configuration and model
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -268,6 +275,7 @@ def run_evaluate_pipeline(model =  None):
     except Exception as e:
         logger.error(f"Unexpected error in main execution: {e}")
         raise
+
 
 if __name__ == "__main__":
     run_evaluate_pipeline()

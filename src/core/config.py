@@ -26,9 +26,6 @@ hyperparams = {
     "momentum": 0.9,
     "early_stopping_patience": 5,
     "num_epochs": 100,  # Early stopping will end training before 100 epochs if validation loss plateaus
-    "weight_decay": 5 * 1e-4,
-    "momentum": 0.9,
-    "early_stopping_patience": 5,
 }
 
 weights = {

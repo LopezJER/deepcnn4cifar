@@ -17,12 +17,16 @@ from src.core.config import paths, model_setup, debug, class_names
 import logging
 from torch.utils.data import DataLoader
 from src.scripts.evaluate import evaluate_model
+
 # Configure logger
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
 
 
-def visualize_cifar10_with_labels(classes, num_examples=5, save_path="outputs/cifar10_visualization.png"
+def visualize_cifar10_with_labels(
+    classes, num_examples=5, save_path="outputs/cifar10_visualization.png"
 ):
     """
     Visualizes the CIFAR-10 dataset with each row corresponding to a class
@@ -335,32 +339,168 @@ def visualize_mistakes_images_grouped_with_row_titles(
         print(f"Error in visualize_mistakes_images_grouped_with_row_titles: {e}")
 
 
-# Function to visualize filters (cut off in the snippet, hence I will provide an outline of how it could be handled)
-def visualize_filters(model, layer_name, output_path):
+def get_activation_maps(model, image, layers):
     """
-    Visualizes filters of a particular convolutional layer.
+    Extracts activation maps from specified layers of the model.
+
+    Args:
+        model (torch.nn.Module): The trained model.
+        image (torch.Tensor): The input image tensor (1, C, H, W).
+        layers (list): List of layers to extract activations from.
+
+    Returns:
+        dict: Dictionary of layer names and corresponding activations.
     """
-    try:
+    activation_maps = {}
+    hooks = []
+
+    def hook_fn(layer_name):
+        def hook(module, input, output):
+            activation_maps[layer_name] = output.detach().cpu()
+
+        return hook
+
+    # Register hooks to capture activations
+    for layer_name in layers:
         layer = dict(model.named_modules())[layer_name]
-        filters = layer.weight.data.cpu().numpy()
+        hook = layer.register_forward_hook(hook_fn(layer_name))
+        hooks.append(hook)
 
-        # Plot the filters
-        n_filters = filters.shape[0]
-        n_cols = 8
-        n_rows = (n_filters // n_cols) + 1
-        fig, axes = plt.subplots(n_rows, n_cols, figsize=(12, 12))
-        for i in range(n_filters):
-            ax = axes[i // n_cols, i % n_cols]
-            ax.imshow(filters[i, 0, :, :], cmap="gray")
-            ax.axis("off")
+    # Forward pass through the model
+    _ = model(image)
 
-        plt.tight_layout()
-        plt.savefig(output_path)
-        logger.info(f"Filters saved to {output_path}")
-        plt.show()
+    # Remove hooks
+    for hook in hooks:
+        hook.remove()
 
-    except Exception as e:
-        logger.error(f"Error in visualize_filters: {e}")
+    return activation_maps
+
+
+def visualize_most_active_feature_maps(
+    model, image, label, class_names, layer_names, num_feature_maps=5
+):
+    """
+    Visualizes the most active feature maps at different depths of the network
+    using a structured grid layout, including a color legend.
+
+    Args:
+        model (torch.nn.Module): The trained CNN model.
+        image (torch.Tensor): A single input image (1, C, H, W).
+        label (int): The true class label of the input image.
+        class_names (list): List of class names corresponding to labels.
+        layer_names (list): List of layer names to visualize.
+        num_feature_maps (int): Number of most active feature maps to display per layer.
+    """
+    model.eval()
+    activations = {}
+
+    # Hook function to store activations
+    def hook_fn(layer_name):
+        def hook(module, input, output):
+            activations[layer_name] = output.detach().cpu()
+
+        return hook
+
+    # Register hooks on specified layers
+    hooks = []
+    for name, layer in model.named_children():
+        if name in layer_names:
+            hook = layer.register_forward_hook(hook_fn(name))
+            hooks.append(hook)
+
+    # Forward pass to capture activations
+    _ = model(image.unsqueeze(0))  # Add batch dimension
+
+    # Remove hooks after forward pass
+    for hook in hooks:
+        hook.remove()
+
+    num_layers = len(layer_names)
+
+    # **Create figure with proper spacing**
+    fig, axes = plt.subplots(
+        num_layers + 1,  # First row for input image, remaining for layers
+        num_feature_maps + 1,  # Extra column for layer labels
+        figsize=(18, 3 * num_layers),
+        gridspec_kw={
+            "width_ratios": [1] + [1] * num_feature_maps
+        },  # Adjust for spacing
+    )
+
+    # **Set Figure Title Properly**
+    fig.suptitle(
+        "Feature Maps at Different Depths", fontsize=18, fontweight="bold", y=0.97
+    )
+
+    # **First Row: Input Image with Label**
+    img_np = image.permute(1, 2, 0).cpu().numpy()
+    img_np = (img_np - img_np.min()) / (img_np.max() - img_np.min())  # Normalize
+    input_label = class_names[label]  # Get label name
+    axes[0, 0].imshow(img_np)
+    axes[0, 0].set_title(
+        f"Input Image\n(Label: {input_label})", fontsize=14, fontweight="bold", pad=15
+    )
+    axes[0, 0].axis("off")
+
+    # Hide other first-row cells (previously causing extra subplot)
+    for col in range(1, num_feature_maps + 1):
+        axes[0, col].axis("off")
+
+    # **Second Row: Column Titles (Filters)**
+    for col_idx in range(num_feature_maps):
+        axes[1, col_idx + 1].set_title(
+            f"Filter {col_idx + 1}", fontsize=12, fontweight="bold"
+        )
+        axes[1, col_idx + 1].axis("off")
+
+    # **Process Each Layer**
+    all_maps = []  # Store all activation maps for colorbar normalization
+    for row_idx, layer_name in enumerate(layer_names):
+        activation = activations[layer_name]  # Shape: (1, num_filters, H, W)
+        mean_activations = activation[0].mean(
+            dim=(1, 2)
+        )  # Compute mean activation per filter
+
+        # ✅ **Select the most active filters**
+        top_filters = mean_activations.argsort(descending=True)[:num_feature_maps]
+
+        # **Set row title (Layer Name) using plt.text()**
+        axes[row_idx + 1, 0].text(
+            0.5,
+            0.5,
+            f"Layer {row_idx + 1}",
+            fontsize=12,
+            fontweight="bold",
+            ha="center",
+            va="center",
+            transform=axes[row_idx + 1, 0].transAxes,
+        )
+        axes[row_idx + 1, 0].axis("off")  # Empty left column for layer titles
+
+        # **Display the most active feature maps**
+        for col_idx, filter_idx in enumerate(top_filters):
+            feature_map = activation[0, filter_idx].numpy()
+            axes[row_idx + 1, col_idx + 1].imshow(feature_map, cmap="viridis")
+            axes[row_idx + 1, col_idx + 1].axis("off")
+            all_maps.append(feature_map)  # Store for colorbar scaling
+
+    # **Add a colorbar for activation intensity**
+    all_maps = np.concatenate([m.flatten() for m in all_maps])  # Flatten maps
+    min_val, max_val = all_maps.min(), all_maps.max()  # Get global min-max values
+
+    cax = fig.add_axes([0.92, 0.2, 0.015, 0.6])  # Position the colorbar
+    norm = plt.Normalize(vmin=min_val, vmax=max_val)
+    sm = plt.cm.ScalarMappable(cmap="viridis", norm=norm)
+    sm.set_array([])
+    cbar = plt.colorbar(sm, cax=cax)
+    cbar.set_label("Activation Intensity", fontsize=12, fontweight="bold")
+
+    # **Adjust Layout**
+    plt.tight_layout(rect=[0, 0., 0.9, 0.95])  # Space for colorbar
+    # Save the figure
+    fig.savefig("outputs/feature_maps.png", bbox_inches="tight", dpi=300)
+    print("Feature maps saved to outputs/feature_maps.png")
+    plt.show()
 
 
 def run_visualization_pipeline():
@@ -385,20 +525,28 @@ def run_visualization_pipeline():
 
         # Check if Debug Mode is ON
         if debug["on"]:
-            logger.info("Debug mode enabled: Using a smaller dataset for visualization.")
+            logger.info(
+                "Debug mode enabled: Using a smaller dataset for visualization."
+            )
             dataloaders = get_cifar_dataloaders(include_test=True, test_only=True)
 
             # Ensure test_loader exists before applying debug mode
             if "test" not in dataloaders or dataloaders["test"] is None:
                 logger.error("Error: test_loader not found in dataloaders!")
-                raise ValueError("test_loader is None. Cannot proceed with visualization.")
+                raise ValueError(
+                    "test_loader is None. Cannot proceed with visualization."
+                )
 
             # Apply Debug Mode to reduce dataset size
-            _, _, test_loader = get_debug_dataloaders(test_loader=dataloaders.get("test"))
+            _, _, test_loader = get_debug_dataloaders(
+                test_loader=dataloaders.get("test")
+            )
 
             # Ensure test_loader is still valid after debug mode
             if test_loader is None:
-                logger.error("Error: test_loader is None after applying get_debug_dataloaders()!")
+                logger.error(
+                    "Error: test_loader is None after applying get_debug_dataloaders()!"
+                )
                 raise ValueError("test_loader is None. Check get_debug_dataloaders().")
 
         else:
@@ -408,11 +556,13 @@ def run_visualization_pipeline():
 
             if "test" not in dataloaders or dataloaders["test"] is None:
                 logger.error("Error: test_loader not found in dataloaders!")
-                raise ValueError("test_loader is None. Cannot proceed with visualization.")
+                raise ValueError(
+                    "test_loader is None. Cannot proceed with visualization."
+                )
 
             test_loader = dataloaders["test"]
 
-        '''# Run visualization of CIFAR-10 images
+        """# Run visualization of CIFAR-10 images
         logger.info("Running visualize_cifar10_with_labels()...")
         visualize_cifar10_with_labels(class_names, num_examples=5, save_path="outputs/cifar10_visualization.png")
         
@@ -420,7 +570,7 @@ def run_visualization_pipeline():
         logger.info("Running visualize_image_transformations()...")
         visualize_image_transformations()
 
-        logger.info("Visualization pipeline completed successfully.")'''
+        logger.info("Visualization pipeline completed successfully.")
 
         # Run Model Evaluation to Get Predictions and Metrics
         logger.info("Running model evaluation...")
@@ -444,7 +594,30 @@ def run_visualization_pipeline():
             top_mistakes,
             class_names,
             max_images_per_category=5,
+        )"""
+
+        # Run activation visualization on a sample image
+        # Select a single image from the test dataset
+        image_index = 10  # Choose an index from the test set
+        image, label = test_loader.dataset[image_index]  # Extract image without label
+
+        # Run visualization
+        logger.info("Running visualize_activations...")
+
+        visualize_most_active_feature_maps(
+            model,
+            image, label, class_names,  # Pass a single image, not the dataset
+            layer_names=[
+                "conv2d_block1",
+                "conv2d_block2",
+                "conv2d_block3",
+                "conv2d_block4",
+                "conv2d_block5",
+            ],
+            num_feature_maps=5,
         )
+
+        logger.info("Visualization pipeline completed successfully.")
 
     except Exception as e:
         logger.error(f"Error in visualization pipeline: {e}")

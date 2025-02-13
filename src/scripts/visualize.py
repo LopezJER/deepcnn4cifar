@@ -1,6 +1,7 @@
 import os
 import subprocess
 import torch
+import random
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -339,43 +340,6 @@ def visualize_mistakes_images_grouped_with_row_titles(
         print(f"Error in visualize_mistakes_images_grouped_with_row_titles: {e}")
 
 
-def get_activation_maps(model, image, layers):
-    """
-    Extracts activation maps from specified layers of the model.
-
-    Args:
-        model (torch.nn.Module): The trained model.
-        image (torch.Tensor): The input image tensor (1, C, H, W).
-        layers (list): List of layers to extract activations from.
-
-    Returns:
-        dict: Dictionary of layer names and corresponding activations.
-    """
-    activation_maps = {}
-    hooks = []
-
-    def hook_fn(layer_name):
-        def hook(module, input, output):
-            activation_maps[layer_name] = output.detach().cpu()
-
-        return hook
-
-    # Register hooks to capture activations
-    for layer_name in layers:
-        layer = dict(model.named_modules())[layer_name]
-        hook = layer.register_forward_hook(hook_fn(layer_name))
-        hooks.append(hook)
-
-    # Forward pass through the model
-    _ = model(image)
-
-    # Remove hooks
-    for hook in hooks:
-        hook.remove()
-
-    return activation_maps
-
-
 def visualize_most_active_feature_maps(
     model, image, label, class_names, layer_names, num_feature_maps=5
 ):
@@ -461,7 +425,7 @@ def visualize_most_active_feature_maps(
             dim=(1, 2)
         )  # Compute mean activation per filter
 
-        # ✅ **Select the most active filters**
+        #  **Select the most active filters**
         top_filters = mean_activations.argsort(descending=True)[:num_feature_maps]
 
         # **Set row title (Layer Name) using plt.text()**
@@ -500,6 +464,159 @@ def visualize_most_active_feature_maps(
     # Save the figure
     fig.savefig("outputs/feature_maps.png", bbox_inches="tight", dpi=300)
     print("Feature maps saved to outputs/feature_maps.png")
+    plt.show()
+
+
+# Function to denormalize CIFAR-10 images
+def denormalize(img, mean, std):
+    """
+    Converts a normalized image tensor back to its original scale.
+
+    Args:
+        img (torch.Tensor): Normalized image tensor (C, H, W).
+        mean (tuple): Mean used for normalization (per channel).
+        std (tuple): Standard deviation used for normalization (per channel).
+
+    Returns:
+        numpy.ndarray: Denormalized image in the range [0,1].
+    """
+    img = img.clone().cpu().numpy().transpose(1, 2, 0)  # Convert to (H, W, C)
+    img = img * std + mean  # Reverse normalization
+    img = np.clip(img, 0, 1)  # Ensure values are within valid range
+    return img
+
+
+def visualize_cam_on_image(img, cam, alpha=0.5):
+    """
+    Overlays the Grad-CAM heatmap on an input image.
+
+    Args:
+        img (numpy.ndarray): Original image (H, W, C) in range [0,1].
+        cam (numpy.ndarray): Grad-CAM heatmap (H, W).
+        alpha (float): Transparency factor.
+
+    Returns:
+        numpy.ndarray: Overlayed image.
+    """
+    # Resize CAM to match the original image size
+    cam_resized = cv2.resize(
+        cam, (img.shape[1], img.shape[0]), interpolation=cv2.INTER_LINEAR
+    )
+
+    # Normalize CAM for visualization
+    cam_resized = (cam_resized - cam_resized.min()) / (
+        cam_resized.max() - cam_resized.min()
+    )
+
+    # Convert CAM to a heatmap
+    heatmap = cv2.applyColorMap(np.uint8(255 * cam_resized), cv2.COLORMAP_JET)
+    heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)  # Convert BGR to RGB
+
+    # Overlay heatmap onto the original image
+    overlay = cv2.addWeighted(np.uint8(img * 255), 1 - alpha, heatmap, alpha, 0)
+
+    return overlay
+
+
+def get_random_unique_category_images(dataset, class_names, num_images=5):
+    """
+    Randomly selects `num_images` unique category images from the dataset.
+
+    Args:
+        dataset (torchvision Dataset): CIFAR-10 dataset.
+        class_names (list): List of class names.
+        num_images (int): Number of unique category images to retrieve.
+
+    Returns:
+        list: Selected images (numpy format).
+        list: Image tensors (preprocessed for model input).
+        list: Corresponding class labels.
+    """
+    images, tensors, labels = [], [], []
+
+    mean = np.array([0.4914, 0.4822, 0.4465])  # CIFAR-10 mean
+    std = np.array([0.2470, 0.2435, 0.2616])  # CIFAR-10 std
+
+    # Collect all indices per class
+    class_indices = {i: [] for i in range(len(class_names))}
+    for idx in range(len(dataset)):
+        _, label = dataset[idx]
+        class_indices[int(label)].append(idx)  # Ensure label is int
+
+    # Shuffle indices within each class
+    for label in class_indices:
+        random.shuffle(class_indices[label])
+
+    # Randomly select one image per class, ensuring unique categories
+    selected_classes = random.sample(list(class_indices.keys()), num_images)
+    for label in selected_classes:
+        idx = class_indices[label].pop()  # Pick a random index from that class
+        img, _ = dataset[idx]
+        img_np = denormalize(img, mean, std)  # Convert tensor to numpy format
+        tensors.append(img.unsqueeze(0))  # Add batch dimension
+        images.append(img_np)
+        labels.append(label)
+
+    return images, tensors, labels
+
+
+def visualize_gradcam_results(
+    model, dataset, class_names, layer_name, output_path="outputs/gradcam_results.png"
+):
+    """
+    Generates Grad-CAM visualizations for multiple images and saves the results.
+
+    Args:
+        model (torch.nn.Module): Trained model.
+        dataset (torchvision Dataset): CIFAR-10 dataset.
+        class_names (list): Class names of CIFAR-10.
+        layer_name (str): Target convolutional layer for Grad-CAM.
+        output_path (str): Path to save the visualization.
+    """
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    model.to(device).eval()
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    grad_cam = GradCAM(model, target_layer=layer_name)
+
+    images, tensors, labels = get_random_unique_category_images(
+        dataset, class_names, num_images=5
+    )
+
+    cams = [
+        grad_cam.generate_cam(tensor.to(device), target_class=label)
+        for tensor, label in zip(tensors, labels)
+    ]
+
+    fig, axes = plt.subplots(
+        5, 3, figsize=(14, 15), gridspec_kw={"width_ratios": [1, 0.1, 1]}
+    )
+    fig.suptitle(
+        "Grad-CAM Visualizations for CIFAR-10", fontsize=18, fontweight="bold", y=0.98
+    )
+
+    for i, (img_np, cam, label) in enumerate(zip(images, cams, labels)):
+        overlay = visualize_cam_on_image(img_np, cam)
+
+        axes[i, 0].imshow(img_np)
+        axes[i, 0].set_title(f"Original - {class_names[label]}", fontsize=14)
+        axes[i, 0].axis("off")
+
+        axes[i, 1].axis("off")
+
+        axes[i, 2].imshow(overlay)
+        axes[i, 2].set_title(f"Activation Map - {class_names[label]}", fontsize=14)
+        axes[i, 2].axis("off")
+
+    sm = plt.cm.ScalarMappable(cmap="jet", norm=plt.Normalize(vmin=0, vmax=1))
+    cbar_ax = fig.add_axes([0.92, 0.2, 0.015, 0.6])
+    cbar = fig.colorbar(sm, cax=cbar_ax)
+    cbar.set_label("Activation Intensity", fontsize=12)
+
+    plt.tight_layout(rect=[0, 0, 0.9, 0.95])
+    plt.savefig(output_path, dpi=300, bbox_inches="tight")
+    print(f"Figure saved as {output_path}")
     plt.show()
 
 
@@ -594,7 +711,7 @@ def run_visualization_pipeline():
             top_mistakes,
             class_names,
             max_images_per_category=5,
-        )"""
+        )
 
         # Run activation visualization on a sample image
         # Select a single image from the test dataset
@@ -615,8 +732,10 @@ def run_visualization_pipeline():
                 "conv2d_block5",
             ],
             num_feature_maps=5,
-        )
+        )"""
 
+        # Run Grad-CAM visualization on 5 random images
+        visualize_gradcam_results(model, test_loader.dataset, class_names, layer_name='conv2d_block5.4', output_path="outputs/gradcam_results.png")
         logger.info("Visualization pipeline completed successfully.")
 
     except Exception as e:

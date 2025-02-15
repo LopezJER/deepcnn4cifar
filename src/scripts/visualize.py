@@ -99,21 +99,31 @@ def visualize_cifar10_with_labels(
         logger.error(f"Error in visualize_cifar10_with_labels: {e}")
 
 
-def plot_image_transformation(ax, image, title):
+def plot_image_transformation(
+    ax, image, title, is_normalized=False, dataset_mean=None, dataset_std=None
+):
     """
     Plots a single image with a title.
 
     Args:
         ax (matplotlib.axes.Axes): The axis to plot on.
-        image (numpy array): The image to be displayed.
+        image (numpy array or torch.Tensor): The image to be displayed.
         title (str): Title for the image.
+        is_normalized (bool): Whether the image was normalized (if True, it is denormalized for display).
+        dataset_mean (list): Mean values for normalization.
+        dataset_std (list): Std values for normalization.
     """
-    # If image is in range [0, 255], convert to [0,1] for imshow()
-    if image.dtype == np.uint8:
-        ax.imshow(image)  # Display as is
-    else:
-        ax.imshow(np.clip(image, 0, 1))  # Only clip for normalized images
+    if isinstance(image, torch.Tensor):
+        image = image.permute(1, 2, 0).numpy()  # Convert from (C, H, W) to (H, W, C)
 
+    if is_normalized and dataset_mean is not None and dataset_std is not None:
+        # Denormalize image for correct visualization
+        mean = np.array(dataset_mean)
+        std = np.array(dataset_std)
+        image = (image * std) + mean
+        image = np.clip(image, 0, 1)  # Ensure values remain valid for display
+
+    ax.imshow(image)
     ax.set_title(title, fontsize=12)
     ax.axis("off")
 
@@ -127,6 +137,7 @@ def visualize_image_transformations():
         logger.info("Loading original CIFAR-10 dataset...")
         original_dataset = datasets.CIFAR10(root="./data", train=True, download=True)
 
+        # Dynamically compute dataset statistics
         dataset_mean, dataset_std = calculate_dataset_statistics()
 
         resized_transform = transforms.Compose(
@@ -136,15 +147,14 @@ def visualize_image_transformations():
             [
                 transforms.ToTensor(),
                 transforms.Resize((224, 224)),
-                transforms.Normalize(
-                    mean=dataset_mean.tolist(), std=dataset_std.tolist()
-                ),
+                transforms.Normalize(mean=dataset_mean, std=dataset_std),
             ]
         )
 
         class_names = original_dataset.classes
         images_per_class = {}
 
+        # Select one image per class
         for idx in range(len(original_dataset)):
             image, label = original_dataset[idx]
             if label not in images_per_class:
@@ -162,15 +172,18 @@ def visualize_image_transformations():
         for idx, (label, img_idx) in enumerate(images_per_class.items()):
             original_image = original_dataset[img_idx][0]
 
-            # Fix: Convert PIL to RGB before converting to numpy
+            # Convert PIL to NumPy (ensures RGB format)
             original_image_np = np.array(original_image.convert("RGB"))
 
+            # Apply transformations
             resized_image = resized_transform(original_image)
             normalized_image = normalized_transform(original_image)
 
+            # Convert tensors to NumPy arrays for visualization
             resized_image_np = resized_image.permute(1, 2, 0).numpy()
             normalized_image_np = normalized_image.permute(1, 2, 0).numpy()
 
+            # Plot original, resized, and normalized (with denormalization)
             plot_image_transformation(
                 axes[idx, 0], original_image_np, f"Original: {class_names[label]}"
             )
@@ -178,7 +191,12 @@ def visualize_image_transformations():
                 axes[idx, 1], resized_image_np, f"Resized: {class_names[label]}"
             )
             plot_image_transformation(
-                axes[idx, 2], normalized_image_np, f"Normalized: {class_names[label]}"
+                axes[idx, 2],
+                normalized_image_np,
+                f"Normalized: {class_names[label]}",
+                is_normalized=True,
+                dataset_mean=dataset_mean,
+                dataset_std=dataset_std,
             )
 
         fig.suptitle(
@@ -378,238 +396,6 @@ def visualize_top_mistakes(cm, class_names, top_n=5):
         return []
 
 
-# Function to visualize grouped misclassified images
-def visualize_mistakes_images_grouped_with_row_titles(
-    true_labels,
-    predicted_labels,
-    test_dataset,
-    top_mistakes,
-    class_names,
-    max_images_per_category=5,
-):
-    """
-    Visualizes grouped misclassified images.
-    - Figure-wide title at the top
-    - Each row represents one misclassification type
-    - Row titles are on the left side of the images
-    """
-
-    assert isinstance(true_labels, np.ndarray), "true_labels must be a numpy array"
-    assert isinstance(
-        predicted_labels, np.ndarray
-    ), "predicted_labels must be a numpy array"
-    assert isinstance(
-        test_dataset, torch.utils.data.Dataset
-    ), "test_dataset must be a valid dataset object"
-    assert isinstance(top_mistakes, list), "top_mistakes must be a list"
-    assert isinstance(class_names, list), "class_names must be a list"
-    assert (
-        isinstance(max_images_per_category, int) and max_images_per_category > 0
-    ), "max_images_per_category must be a positive integer"
-
-    try:
-        num_rows = min(len(top_mistakes), 5)  # Always keep 5 rows max
-        misclassified_data = []
-
-        # Collect misclassified images
-        for true_class, predicted_class, _ in top_mistakes[:num_rows]:
-            true_class_idx = class_names.index(true_class)
-            predicted_class_idx = class_names.index(predicted_class)
-            images = []
-
-            for i in range(len(true_labels)):
-                if (
-                    true_labels[i] == true_class_idx
-                    and predicted_labels[i] == predicted_class_idx
-                ):
-                    images.append(test_dataset[i][0])  # Extract image
-                if len(images) == max_images_per_category:
-                    break
-
-            misclassified_data.append((true_class, predicted_class, images))
-
-        # Determine max columns dynamically
-        max_cols = (
-            max(len(images) for _, _, images in misclassified_data)
-            if misclassified_data
-            else 1
-        )
-
-        fig, axes = plt.subplots(num_rows, max_cols + 1, figsize=(12, 3 * num_rows))
-        fig.suptitle("Misclassified Images by Category", fontsize=18, fontweight="bold")
-
-        # Plot misclassified images
-        for row_idx, (true_class, predicted_class, images) in enumerate(
-            misclassified_data
-        ):
-            num_cols = len(
-                images
-            )  # Use actual number of misclassified images for this row
-
-            # Add text label as the first column in the row
-            axes[row_idx, 0].text(
-                0.5,
-                0.5,
-                f"True: {true_class}\nPredicted: {predicted_class}",
-                fontsize=12,
-                fontweight="bold",
-                ha="center",
-                va="center",
-            )
-            axes[row_idx, 0].axis("off")  # Hide the subplot axis
-
-            for col_idx in range(max_cols):
-                ax = axes[row_idx, col_idx + 1]  # Offset by 1 since col 0 is the label
-
-                if col_idx < num_cols:
-                    img = (
-                        images[col_idx].permute(1, 2, 0).cpu().numpy()
-                    )  # Convert PyTorch tensor to NumPy
-                    img = (img - img.min()) / (
-                        img.max() - img.min()
-                    )  # Normalize for display
-                    ax.imshow(img)
-                ax.axis("off")
-
-        plt.tight_layout(
-            rect=[0.1, 0, 1, 0.96]
-        )  # Adjust layout for the figure-wide title
-        output_path = os.path.join("outputs", "misclassified_images_grouped.png")
-        os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        plt.savefig(output_path, dpi=300, bbox_inches="tight")
-        plt.show()
-
-    except Exception as e:
-        print(f"Error in visualize_mistakes_images_grouped_with_row_titles: {e}")
-
-
-def visualize_most_active_feature_maps(
-    model, image, label, class_names, layer_names, num_feature_maps=5
-):
-    """
-    Visualizes the most active feature maps at different depths of the network
-    using a structured grid layout, including a color legend.
-
-    Args:
-        model (torch.nn.Module): The trained CNN model.
-        image (torch.Tensor): A single input image (1, C, H, W).
-        label (int): The true class label of the input image.
-        class_names (list): List of class names corresponding to labels.
-        layer_names (list): List of layer names to visualize.
-        num_feature_maps (int): Number of most active feature maps to display per layer.
-    """
-    model.eval()
-    activations = {}
-
-    # Hook function to store activations
-    def hook_fn(layer_name):
-        def hook(module, input, output):
-            activations[layer_name] = output.detach().cpu()
-
-        return hook
-
-    # Register hooks on specified layers
-    hooks = []
-    for name, layer in model.named_children():
-        if name in layer_names:
-            hook = layer.register_forward_hook(hook_fn(name))
-            hooks.append(hook)
-
-    # Forward pass to capture activations
-    _ = model(image.unsqueeze(0))  # Add batch dimension
-
-    # Remove hooks after forward pass
-    for hook in hooks:
-        hook.remove()
-
-    num_layers = len(layer_names)
-
-    # **Create figure with proper spacing**
-    fig, axes = plt.subplots(
-        num_layers + 1,  # First row for input image, remaining for layers
-        num_feature_maps + 1,  # Extra column for layer labels
-        figsize=(18, 3 * num_layers),
-        gridspec_kw={
-            "width_ratios": [1] + [1] * num_feature_maps
-        },  # Adjust for spacing
-    )
-
-    # **Set Figure Title Properly**
-    fig.suptitle(
-        "Feature Maps at Different Depths", fontsize=18, fontweight="bold", y=0.97
-    )
-
-    # **First Row: Input Image with Label**
-    img_np = image.permute(1, 2, 0).cpu().numpy()
-    img_np = (img_np - img_np.min()) / (img_np.max() - img_np.min())  # Normalize
-    input_label = class_names[label]  # Get label name
-    axes[0, 0].imshow(img_np)
-    axes[0, 0].set_title(
-        f"Input Image\n(Label: {input_label})", fontsize=14, fontweight="bold", pad=15
-    )
-    axes[0, 0].axis("off")
-
-    # Hide other first-row cells (previously causing extra subplot)
-    for col in range(1, num_feature_maps + 1):
-        axes[0, col].axis("off")
-
-    # **Second Row: Column Titles (Filters)**
-    for col_idx in range(num_feature_maps):
-        axes[1, col_idx + 1].set_title(
-            f"Filter {col_idx + 1}", fontsize=12, fontweight="bold"
-        )
-        axes[1, col_idx + 1].axis("off")
-
-    # **Process Each Layer**
-    all_maps = []  # Store all activation maps for colorbar normalization
-    for row_idx, layer_name in enumerate(layer_names):
-        activation = activations[layer_name]  # Shape: (1, num_filters, H, W)
-        mean_activations = activation[0].mean(
-            dim=(1, 2)
-        )  # Compute mean activation per filter
-
-        #  **Select the most active filters**
-        top_filters = mean_activations.argsort(descending=True)[:num_feature_maps]
-
-        # **Set row title (Layer Name) using plt.text()**
-        axes[row_idx + 1, 0].text(
-            0.5,
-            0.5,
-            f"Layer {row_idx + 1}",
-            fontsize=12,
-            fontweight="bold",
-            ha="center",
-            va="center",
-            transform=axes[row_idx + 1, 0].transAxes,
-        )
-        axes[row_idx + 1, 0].axis("off")  # Empty left column for layer titles
-
-        # **Display the most active feature maps**
-        for col_idx, filter_idx in enumerate(top_filters):
-            feature_map = activation[0, filter_idx].numpy()
-            axes[row_idx + 1, col_idx + 1].imshow(feature_map, cmap="viridis")
-            axes[row_idx + 1, col_idx + 1].axis("off")
-            all_maps.append(feature_map)  # Store for colorbar scaling
-
-    # **Add a colorbar for activation intensity**
-    all_maps = np.concatenate([m.flatten() for m in all_maps])  # Flatten maps
-    min_val, max_val = all_maps.min(), all_maps.max()  # Get global min-max values
-
-    cax = fig.add_axes([0.92, 0.2, 0.015, 0.6])  # Position the colorbar
-    norm = plt.Normalize(vmin=min_val, vmax=max_val)
-    sm = plt.cm.ScalarMappable(cmap="viridis", norm=norm)
-    sm.set_array([])
-    cbar = plt.colorbar(sm, cax=cax)
-    cbar.set_label("Activation Intensity", fontsize=12, fontweight="bold")
-
-    # **Adjust Layout**
-    plt.tight_layout(rect=[0, 0.0, 0.9, 0.95])  # Space for colorbar
-    # Save the figure
-    fig.savefig("outputs/feature_maps.png", bbox_inches="tight", dpi=300)
-    print("Feature maps saved to outputs/feature_maps.png")
-    plt.show()
-
-
 # Function to denormalize CIFAR-10 images
 def denormalize(img, mean, std):
     """
@@ -648,7 +434,7 @@ def visualize_cam_on_image(img, cam, alpha=0.5):
 
     # Normalize CAM for visualization
     cam_resized = (cam_resized - cam_resized.min()) / (
-        cam_resized.max() - cam_resized.min()
+        cam_resized.max() - cam_resized.min() + 1e-6
     )
 
     # Convert CAM to a heatmap
@@ -677,8 +463,7 @@ def get_random_unique_category_images(dataset, class_names, num_images=5):
     """
     images, tensors, labels = [], [], []
 
-    mean = np.array([0.4914, 0.4822, 0.4465])  # CIFAR-10 mean
-    std = np.array([0.2470, 0.2435, 0.2616])  # CIFAR-10 std
+    mean, std = calculate_dataset_statistics()  # CIFAR-10 mean, std
 
     # Collect all indices per class
     class_indices = {i: [] for i in range(len(class_names))}
@@ -703,61 +488,102 @@ def get_random_unique_category_images(dataset, class_names, num_images=5):
     return images, tensors, labels
 
 
-def visualize_gradcam_results(
-    model, dataset, class_names, layer_name, output_path="outputs/gradcam_results.png"
+def visualize_gradcam_multiple_layers(
+    model,
+    dataset,
+    class_names,
+    layer_names,
+    output_path="outputs/gradcam_results.png",
+    num_images=5,
 ):
     """
-    Generates Grad-CAM visualizations for multiple images and saves the results.
+    Generates Grad-CAM visualizations for multiple layers on multiple images.
+    Each row represents a different input image, and the columns represent Grad-CAM visualizations for different layers.
 
     Args:
         model (torch.nn.Module): Trained model.
         dataset (torchvision Dataset): CIFAR-10 dataset.
         class_names (list): Class names of CIFAR-10.
-        layer_name (str): Target convolutional layer for Grad-CAM.
+        layer_names (list): List of target layers for Grad-CAM.
         output_path (str): Path to save the visualization.
+        num_images (int): Number of images to visualize Grad-CAM on.
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device).eval()
-
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
 
-    grad_cam = GradCAM(model, target_layer=layer_name)
-
+    # Select `num_images` unique images from different classes
     images, tensors, labels = get_random_unique_category_images(
-        dataset, class_names, num_images=5
+        dataset, class_names, num_images=num_images
     )
 
-    cams = [
-        grad_cam.generate_cam(tensor.to(device), target_class=label)
-        for tensor, label in zip(tensors, labels)
-    ]
+    num_layers = len(layer_names)
 
     fig, axes = plt.subplots(
-        5, 3, figsize=(14, 15), gridspec_kw={"width_ratios": [1, 0.1, 1]}
+        num_images,  # Remove extra row for layer titles
+        num_layers + 1,  # +1 for the original image column
+        figsize=(3 * (num_layers + 1), 3 * num_images),
+        gridspec_kw={
+            "hspace": 0.6,
+            "wspace": 0.5,
+        },  # Increase space between rows and columns
     )
+
     fig.suptitle(
-        "Grad-CAM Visualizations for CIFAR-10", fontsize=18, fontweight="bold", y=0.98
+        "Grad-CAM Visualizations for Multiple Images and Layers",
+        fontsize=18,
+        fontweight="bold",
+        y=0.98,
     )
 
-    for i, (img_np, cam, label) in enumerate(zip(images, cams, labels)):
-        overlay = visualize_cam_on_image(img_np, cam)
+    # Add layer titles on top row
+    for col_idx, layer_name in enumerate(layer_names):
+        axes[0, col_idx + 1].set_title(f"Layer {layer_name}", fontsize=14)
 
-        axes[i, 0].imshow(img_np)
-        axes[i, 0].set_title(f"Original - {class_names[label]}", fontsize=14)
-        axes[i, 0].axis("off")
+    for row_idx in range(num_images):
+        sample_img_np = images[row_idx]  # Original image (numpy format)
+        sample_tensor = tensors[row_idx].to(device)  # Model input
+        sample_label = labels[row_idx]  # True class label
 
-        axes[i, 1].axis("off")
+        # **First Column: Input Image**
+        axes[row_idx, 0].imshow(sample_img_np)
+        axes[row_idx, 0].set_title(f"{class_names[sample_label]}", fontsize=14)
+        axes[row_idx, 0].axis("off")
 
-        axes[i, 2].imshow(overlay)
-        axes[i, 2].set_title(f"Activation Map - {class_names[label]}", fontsize=14)
-        axes[i, 2].axis("off")
+        # **Grad-CAM for each layer**
+        for col_idx, layer_name in enumerate(layer_names):
+            grad_cam = GradCAM(model, target_layer=layer_name)  # Initialize Grad-CAM
+            cam = grad_cam.generate_cam(
+                sample_tensor, target_class=sample_label
+            )  # Get CAM
 
-    sm = plt.cm.ScalarMappable(cmap="jet", norm=plt.Normalize(vmin=0, vmax=1))
-    cbar_ax = fig.add_axes([0.92, 0.2, 0.015, 0.6])
-    cbar = fig.colorbar(sm, cax=cbar_ax)
-    cbar.set_label("Activation Intensity", fontsize=12)
+            # Apply Grad-CAM overlay with viridis colormap
+            cam_resized = cv2.resize(
+                cam, (sample_img_np.shape[1], sample_img_np.shape[0])
+            )
+            cam_resized = (cam_resized - cam_resized.min()) / (
+                cam_resized.max() - cam_resized.min() + 1e-6
+            )
+            heatmap = cv2.applyColorMap(
+                np.uint8(255 * cam_resized), cv2.COLORMAP_VIRIDIS
+            )
+            heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
+            overlay = cv2.addWeighted(
+                np.uint8(sample_img_np * 255), 0.5, heatmap, 0.5, 0
+            )
 
-    plt.tight_layout(rect=[0, 0, 0.9, 0.95])
+            # Show Grad-CAM visualization
+            axes[row_idx, col_idx + 1].imshow(overlay)
+            axes[row_idx, col_idx + 1].axis("off")
+
+    # Add a heatmap color bar on the right
+    cbar_ax = fig.add_axes([0.95, 0.15, 0.02, 0.7])  # Adjust position of colorbar
+    heatmap = np.linspace(0, 1, 256).reshape(256, 1)
+    cbar_img = plt.imshow(heatmap, cmap="viridis", aspect="auto")
+    plt.colorbar(cbar_img, cax=cbar_ax)
+    cbar_ax.set_title("Activation", fontsize=10)
+
+    plt.tight_layout(rect=[0, 0, 1, 1])
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     print(f"Figure saved as {output_path}")
     plt.show()
@@ -822,7 +648,7 @@ def run_visualization_pipeline():
 
             test_loader = dataloaders["test"]
 
-        # Run visualization of CIFAR-10 images
+        '''# Run visualization of CIFAR-10 images
         logger.info("Running visualize_cifar10_with_labels()...")
         visualize_cifar10_with_labels(
             class_names, num_examples=5, save_path="outputs/cifar10_visualization.png"
@@ -858,43 +684,37 @@ def run_visualization_pipeline():
             max_images_per_category=5,
         )
 
-        # Run activation visualization on a sample image
+        '''# Run activation visualization on a sample image
         # Select a single image from the test dataset
         image_index = 10  # Choose an index from the test set
-        image, label = test_loader.dataset[image_index]  # Extract image without label
+        image, label = test_loader.dataset[image_index]  # Extract image
 
         # Run visualization
         logger.info("Running visualize_activations...")
 
-        visualize_most_active_feature_maps(
-            model,
-            image,
-            label,
-            class_names,  # Pass a single image, not the dataset
-            layer_names=[
-                "conv2d_block1",
-                "conv2d_block2",
-                "conv2d_block3",
-                "conv2d_block4",
-                "conv2d_block5",
-            ],
-            num_feature_maps=5,
-        )
+        layer_names = [
+            "conv2d_block1.0",  # First convolution layer in block 1
+            "conv2d_block2.0",  # First convolution layer in block 2
+            "conv2d_block3.0",  # First convolution layer in block 3
+            "conv2d_block3.4",  # Third convolution layer in block 3 (if applicable)
+            "conv2d_block4.4",  # Third convolution layer in block 4 (if applicable)
+            "conv2d_block5.4",  # Third convolution layer in block 5 (if applicable)
+        ]
 
         # Run Grad-CAM visualization on 5 random images
-        visualize_gradcam_results(
+        visualize_gradcam_multiple_layers(
             model,
             test_loader.dataset,
             class_names,
-            layer_name="conv2d_block5.4",
+            layer_names,
             output_path="outputs/gradcam_results.png",
         )
         logger.info("Visualization pipeline completed successfully.")
 
-        plot_data_split()
+        '''plot_data_split()
 
         generate_vgg_visualization("vgg11")  # Generates VGG-11 PDF
-        generate_vgg_visualization("vgg16")  # Generates VGG-16 PDF
+        generate_vgg_visualization("vgg16")  # Generates VGG-16 PDF'''
 
     except Exception as e:
         logger.error(f"Error in visualization pipeline: {e}")

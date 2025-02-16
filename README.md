@@ -138,14 +138,14 @@ Track and compare model accuracy and loss metrics with detailed graphs.
    `python3 -m pip install --upgrade pip`
 
 3. **Install Project Dependencies**  
-   Install the required packages for the project:  
+   Install the required packages for the project:
    `pip install -e .`  
 
-4. **Install Development Dependencies (Optional)**  
+5. **Install Development Dependencies (Optional)**  
    Install additional packages for linting, testing, and other developer tools:  
    `pip install -e .[dev]`  
 
-5. **Run Training & Evaluation Pipelne**  
+6. **Run Training & Evaluation Pipelne**  
    To start training the model, run the following command:  
    `python main.py`  
 
@@ -158,6 +158,9 @@ Note: All relevant settings and hyperparams can be modified under src/core/confi
 <br>
 
 # Unit Tests:
+Ensure you have dev dependencies (i.e., pytest) installed:
+   `pip install .[dev]`<br>
+
 To run unit tests for data and model loading, simply run: <br>
    `pytest`<br>
 

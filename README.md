@@ -128,7 +128,7 @@ Track and compare model accuracy and loss metrics with detailed graphs.
    `pip install virtualenv`  
 
    Create a virtual environment:  
-   `python3 -m venv venv`  
+   `python3.12 -m venv venv`  
 
    Activate the virtual environment:  
    `source venv/bin/activate`  

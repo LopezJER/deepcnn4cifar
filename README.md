@@ -158,7 +158,7 @@ Note: All relevant settings and hyperparams can be modified under src/core/confi
 <br>
 
 # Unit Tests:
-Ensure you have dev dependencies (i.e., pytest) installed:
+Ensure you have dev dependencies (i.e., pytest) installed:<br>
    `pip install .[dev] # '.[dev]' for MacOS`<br>
 
 To run unit tests for data and model loading, simply run: <br>

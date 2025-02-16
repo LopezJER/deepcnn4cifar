@@ -12,7 +12,7 @@ _CIFAR 10 Data Examples:_
 
 _Data division:_
 
-![alt text](data_split.png)
+![alt text](outputs/data_split.png)
 
 _VGG Architecture:_
 
@@ -69,7 +69,7 @@ We also include confusion matrices for evaluating model performance:
 
 Top 5 common mistakes made by the model (1 example per category):
 
-![alt text](./assets/image-8.png)
+![alt text](outputs/misclassified_images_grouped.png)
 
 And Grad-CAM: Visualizing Model Decisions
 Grad-CAM (Gradient-weighted Class Activation Mapping) reveals which image regions influenced a model’s prediction. The figure below applies Grad-CAM to CIFAR-10 images using VGG16, showing original images (left) and activation heatmaps from different layers (right). Warmer colors indicate higher importance.:

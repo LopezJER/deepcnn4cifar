@@ -12,7 +12,7 @@ _CIFAR 10 Data Examples:_
 
 _Data division:_
 
-![alt text](./assets\image-2.png)
+![alt text](./assets/image-2.png)
 
 _VGG Architecture:_
 
@@ -74,7 +74,7 @@ Top 5 common mistakes made by the model (1 example per category):
 And Grad-CAM: Visualizing Model Decisions
 Grad-CAM (Gradient-weighted Class Activation Mapping) reveals which image regions influenced a model’s prediction. The figure below applies Grad-CAM to CIFAR-10 images using VGG16, showing original images (left) and activation heatmaps from different layers (right). Warmer colors indicate higher importance.:
 
-![alt text](gradcam_results.png)
+![alt text](./outputs/gradcam_results.png)
 
 You can easily adjust the depth and parameters of the vggs in src/core/model.py.
 Utilize scripts/visualize.py to generate interactive charts and matrices.

@@ -147,7 +147,7 @@ Track and compare model accuracy and loss metrics with detailed graphs.
 
 5. **Run Training & Evaluation Pipelne**  
    To start training the model, run the following command:  
-   `python -m main.py`  
+   `python main.py`  
 
 7. **Visualize Results (with GradCam)**  
    To visualize results using GradCam on an image, run:  

@@ -1,7 +1,7 @@
 [project]
 name = "deepcnn4cifar"
 version = "0.1.0"
-requires-python = "==3.12.7"
+requires-python = ">=3.12,<3.13"
 description = "Implementing VGG11 and VGG16 for CIFAR-10"
 authors = [
     { name = "Jose Enrique Lopez", email = "ikinglopez1@gmail.com" },
@@ -40,8 +40,8 @@ dependencies = [
     "six==1.17.0",
     "sympy==1.13.3",
     "threadpoolctl==3.5.0",
-    "torch==2.2.2",
-    "torchvision==0.17.2",
+    "torch",
+    "torchvision",
     "tqdm==4.67.1",
     "typing_extensions==4.12.2",
     "tzdata==2025.1",
@@ -51,8 +51,6 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest==8.3.4",
-    "torch==2.2.2",
-    "huggingface-hub==0.28.0"
 ]
 
 [build-system]

@@ -131,7 +131,7 @@ def train_model(model, train_loader, val_loader, hyps, device):
         raise
 
 
-def visualize_losses(train_losses, val_losses, save_path, show=False):
+def visualize_losses(train_losses, val_losses):
     """
     Plot and save training and validation loss.
 
@@ -140,6 +140,10 @@ def visualize_losses(train_losses, val_losses, save_path, show=False):
         val_losses (list): List of validation losses.
     """
     try:
+        output_dir = paths["outputs_dir"]
+        os.makedirs(output_dir, exist_ok=True)
+        loss_plot_path = os.path.join(output_dir, "train_val_loss.png")
+
         plt.plot(train_losses, label="Train Loss")
         plt.plot(val_losses, label="Validation Loss")
         plt.xlabel("Epochs")
@@ -148,11 +152,9 @@ def visualize_losses(train_losses, val_losses, save_path, show=False):
         plt.title("Train and Validation Loss", fontweight="bold")
         plt.grid()
         plt.tight_layout()
-        plt.savefig(save_path)
+        plt.savefig(loss_plot_path)
 
-        logger.info(f"Loss plot saved to: {save_path}")
-        if show:
-            plt.show()
+        logger.info(f"Loss plot saved to: {loss_plot_path}")
     except Exception as e:
         logger.error(f"An error occurred while visualizing losses: {e}")
         raise

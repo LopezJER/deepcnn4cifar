@@ -1,4 +1,12 @@
 import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+console_handler = logging.StreamHandler()
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
+logger.info("Setting up model training libraries. Torch might take a minute.")
+from src.core.config import paths
 from src.scripts.train import run_train_pipeline, visualize_losses
 from src.scripts.evaluate import (
     run_evaluate_pipeline,
@@ -6,15 +14,6 @@ from src.scripts.evaluate import (
     plot_roc_curves
 )
 from src.core.config import class_names
-
-# Set up logger
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
-console_handler = logging.StreamHandler()
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-console_handler.setFormatter(formatter)
-logger.addHandler(console_handler)
-from src.core.config import paths
 
 # Log the start of training
 logger.info("Starting model training...")

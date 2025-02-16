@@ -1,11 +1,3 @@
-import logging
-# Configure logger
-logging.basicConfig(
-    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
-
-logger.info("Importing visualization libraries. Torch might take a minute.")
 # Standard Library Imports
 import os
 import shutil
@@ -32,6 +24,12 @@ from src.core.gradcam import GradCAM
 from src.core.config import paths, model_setup, debug, class_names, latex_path
 from src.scripts.evaluate import evaluate_model
 
+# Configure logger
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+print("Hi")
 
 def visualize_cifar10_with_labels(
     classes, num_examples=5, save_path="outputs/cifar10_visualization.png"
@@ -693,6 +691,7 @@ def visualize_gradcam_multiple_layers(
     plt.colorbar(cbar_img, cax=cbar_ax)
     cbar_ax.set_title("Activation", fontsize=10)
 
+    plt.tight_layout(rect=[0, 0, 1, 1])
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     print(f"Figure saved as {output_path}")
 

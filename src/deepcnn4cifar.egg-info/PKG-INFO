@@ -3,7 +3,7 @@ Name: deepcnn4cifar
 Version: 0.1.0
 Summary: Implementing VGG11 and VGG16 for CIFAR-10
 Author-email: Jose Enrique Lopez <ikinglopez1@gmail.com>, Amit Yelin <amityelin@gmail.com>
-Requires-Python: ==3.12.7
+Requires-Python: <3.13,>=3.12
 License-File: LICENSE
 Requires-Dist: certifi==2024.12.14
 Requires-Dist: charset-normalizer==3.4.1
@@ -37,8 +37,8 @@ Requires-Dist: seaborn==0.13.2
 Requires-Dist: six==1.17.0
 Requires-Dist: sympy==1.13.3
 Requires-Dist: threadpoolctl==3.5.0
-Requires-Dist: torch==2.2.2
-Requires-Dist: torchvision==0.17.2
+Requires-Dist: torch
+Requires-Dist: torchvision
 Requires-Dist: tqdm==4.67.1
 Requires-Dist: typing_extensions==4.12.2
 Requires-Dist: tzdata==2025.1

@@ -151,7 +151,7 @@ Track and compare model accuracy and loss metrics with detailed graphs.
 
 7. **Visualize Results (with GradCam)**  
    To visualize results using GradCam on an image, run:  
-   `python -m src.scripts.visualize.py --task gradcam --num_images 1 --output_path outputs/gradcam_results.png`
+   `python -m src.scripts.visualize --task gradcam --num_images 1 --output_path outputs/gradcam_results.png`
 
 <br>
 Note: All relevant settings and hyperparams can be modified under src/core/config.py

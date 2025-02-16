@@ -1,7 +1,8 @@
-vgg_venv/
+*venv/
 models/
 outputs/
 data/
 *.pyc
 *-workspace
 venv/
+.DS_Store

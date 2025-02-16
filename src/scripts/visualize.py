@@ -29,7 +29,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-
+print("Hi")
 
 def visualize_cifar10_with_labels(
     classes, num_examples=5, save_path="outputs/cifar10_visualization.png"
@@ -697,7 +697,7 @@ def visualize_gradcam_multiple_layers(
     plt.tight_layout(rect=[0, 0, 1, 1])
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     print(f"Figure saved as {output_path}")
-    plt.show()
+    #plt.show()
 
 
 #  Load CIFAR-10 dataset (once) based on debug mode

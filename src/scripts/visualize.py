@@ -606,6 +606,7 @@ def visualize_gradcam_multiple_layers(
     layer_names,
     output_path="outputs/gradcam_results.png",
     num_images=5,
+    show=False
 ):
     """
     Generates Grad-CAM visualizations for multiple layers on multiple images.
@@ -618,6 +619,7 @@ def visualize_gradcam_multiple_layers(
         layer_names (list): List of target layers for Grad-CAM.
         output_path (str): Path to save the visualization.
         num_images (int): Number of images to visualize Grad-CAM on.
+        show (bool): Whether to display the plot. Default is False.
     """
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device).eval()
@@ -631,13 +633,10 @@ def visualize_gradcam_multiple_layers(
     num_layers = len(layer_names)
 
     fig, axes = plt.subplots(
-        num_images,  # Remove extra row for layer titles
+        num_images,
         num_layers + 1,  # +1 for the original image column
         figsize=(3 * (num_layers + 1), 3 * num_images),
-        gridspec_kw={
-            "hspace": 0.6,
-            "wspace": 0.7,
-        },  # Increase space between rows and columns
+        gridspec_kw={"hspace": 0.6, "wspace": 0.7},  # Spacing between subplots
     )
 
     fig.suptitle(
@@ -664,9 +663,7 @@ def visualize_gradcam_multiple_layers(
         # **Grad-CAM for each layer**
         for col_idx, layer_name in enumerate(layer_names):
             grad_cam = GradCAM(model, target_layer=layer_name)  # Initialize Grad-CAM
-            cam = grad_cam.generate_cam(
-                sample_tensor, target_class=sample_label
-            )  # Get CAM
+            cam = grad_cam.generate_cam(sample_tensor, target_class=sample_label)  # Get CAM
 
             # Apply Grad-CAM overlay with viridis colormap
             cam_resized = cv2.resize(
@@ -697,8 +694,11 @@ def visualize_gradcam_multiple_layers(
     plt.tight_layout(rect=[0, 0, 1, 1])
     plt.savefig(output_path, dpi=300, bbox_inches="tight")
     print(f"Figure saved as {output_path}")
-    #plt.show()
 
+    if show:
+        plt.show()
+
+    plt.close()  # Free memory
 
 #  Load CIFAR-10 dataset (once) based on debug mode
 if debug["on"]:

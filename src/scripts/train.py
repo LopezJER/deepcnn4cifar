@@ -172,7 +172,7 @@ def run_train_pipeline():
 
         # Handle Debug Mode
         if debug["on"]:
-            logger.info("Debug mode enabled: Using a smaller dataset for training.")
+            logger.info(f"Debug mode enabled: Using a smaller dataset for training for only {debug['num_epochs']}.")
             dataloaders = get_cifar_dataloaders()
             train_loader, val_loader, _ = get_debug_dataloaders(
                 dataloaders["train"], dataloaders["val"], None

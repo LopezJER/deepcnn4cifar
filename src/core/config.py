@@ -2,8 +2,8 @@ model_setup = {
     "arch": "vgg16",
     "use_pretrained_weights": True,  ### OUR pretrained weights
     "pretrained_weights_arch": "vgg16",  # for example, if current architecture is VGG16,
-    # but we want to transfer some pretrained VGG11 layer weights
-    # to current VGG16 architectue
+                                            # but we want to transfer some pretrained VGG11 layer weights
+                                                # to current VGG16 architectue
     "input_size": (3, 224, 224),
     "val_split": 0.2,
     "num_classes": 10,

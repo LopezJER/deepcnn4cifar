@@ -14,6 +14,7 @@ console_handler = logging.StreamHandler()
 formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
+from src.core.config import paths
 
 # Log the start of training
 logger.info("Starting model training...")
@@ -29,26 +30,23 @@ logger.info("Starting model evaluation...")
 # Evaluate the trained model
 evaluation_results = run_evaluate_pipeline(vgg_model)
 
-# If evaluation results are returned, process and log the metrics
 if evaluation_results:
+    outputs_dir = paths['outputs_dir']
     accuracy, loss, precision, recall, f1, cm, labels_oh, probs = evaluation_results
 
-    # Log the performance metrics
-    logger.info(f"Accuracy: {accuracy:.2f}%")
-    logger.info(f"Loss: {loss:.4f}")
-    logger.info(f"Precision: {precision:.4f}")
-    logger.info(f"Recall: {recall:.4f}")
-    logger.info(f"F1 Score: {f1:.4f}")
-    
-    # Log confusion matrix and ROC curve plotting
-    logger.info("Plotting confusion matrix...")
-    plot_confusion_matrix(cm, class_names)
-    
-    logger.info("Plotting ROC curves...")
-    plot_roc_curves(labels_oh, probs, class_names)
+    # Log the performance metrics in one line
+    logger.info(f"Metrics - Accuracy: {accuracy:.2f}%, Loss: {loss:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1 Score: {f1:.4f}")
 
-    logger.info("Plotting train/val losses...")
-    visualize_losses(train_losses, val_losses)
+    # Save confusion matrix and ROC curves to outputs folder
+    logger.info("Saving confusion matrix...")
+    plot_confusion_matrix(cm, class_names, save_path=f"{outputs_dir}/confusion_matrix.png", show=False)
+    
+    logger.info("Saving ROC curves...")
+    plot_roc_curves(labels_oh, probs, class_names, save_path=f"{outputs_dir}/roc_curves.png", show=False)
+
+    logger.info("Saving train/val loss plots...")
+    visualize_losses(train_losses, val_losses, save_path=f"{outputs_dir}/loss_plot.png", show=False)
 
 # Log completion of the process
-logger.info("Model evaluation and plotting complete.")
+logger.info(f"Model evaluation complete. Basic evaluattion plots saved to {outputs_dir}.")
+

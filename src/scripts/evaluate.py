@@ -171,23 +171,22 @@ def evaluate_model(model, dataloader, device, num_classes):
         logger.error(f"Unexpected error during model evaluation: {e}")
         raise
 
-
-def plot_confusion_matrix(cm, class_names):
+def plot_confusion_matrix(cm, class_names, save_path="confusion_matrix.png", show=False):
     """
-    Plots the confusion matrix.
+    Plots the confusion matrix and saves it as an image.
 
     Args:
         cm (ndarray): The confusion matrix.
         class_names (list): List of class names.
+        save_path (str): File path to save the confusion matrix image.
+        show (bool): Whether to display the plot. Default is False.
 
     Raises:
         AssertionError: If the confusion matrix is not square or class names don't match.
     """
     try:
         assert cm.shape[0] == cm.shape[1], "Confusion matrix must be square."
-        assert (
-            len(class_names) == cm.shape[0]
-        ), "Class names must match confusion matrix dimensions."
+        assert len(class_names) == cm.shape[0], "Class names must match confusion matrix dimensions."
 
         plt.figure(figsize=(10, 8))
         sns.heatmap(
@@ -201,30 +200,37 @@ def plot_confusion_matrix(cm, class_names):
         plt.xlabel("Predicted")
         plt.ylabel("True")
         plt.title("Confusion Matrix")
-        plt.show()
+
+        plt.savefig(save_path, bbox_inches="tight")
+        logger.info(f"Confusion matrix saved to {save_path}")
+
+        if show:
+            plt.show()
+
+        plt.close()  # Close the figure to free memory
+
     except AssertionError as e:
         logger.error(f"Assertion error in confusion matrix plot: {e}")
     except Exception as e:
         logger.error(f"Unexpected error in confusion matrix plot: {e}")
         raise
 
-
-def plot_roc_curves(all_labels_oh, all_probs, class_names):
+def plot_roc_curves(all_labels_oh, all_probs, class_names, save_path="roc_curves.png", show=False):
     """
-    Plots the ROC curves for each class.
+    Plots the ROC curves for each class and saves the figure.
 
     Args:
         all_labels_oh (ndarray): One-hot encoded true labels.
         all_probs (ndarray): Predicted probabilities.
         class_names (list): List of class names.
+        save_path (str): File path to save the ROC curve image.
+        show (bool): Whether to display the plot. Default is False.
 
     Raises:
         AssertionError: If the shape of labels and probabilities do not match.
     """
     try:
-        assert (
-            all_labels_oh.shape == all_probs.shape
-        ), "Shape mismatch between labels and probabilities."
+        assert all_labels_oh.shape == all_probs.shape, "Shape mismatch between labels and probabilities."
 
         fpr, tpr, roc_auc = {}, {}, {}
         for i, class_name in enumerate(class_names):
@@ -241,7 +247,15 @@ def plot_roc_curves(all_labels_oh, all_probs, class_names):
         plt.title("ROC Curves")
         plt.legend(loc="lower right")
         plt.grid(alpha=0.3)
-        plt.show()
+
+        plt.savefig(save_path, bbox_inches="tight")
+        logger.info(f"ROC curves saved to {save_path}")
+
+        if show:
+            plt.show()
+
+        plt.close()  # Free memory
+
     except AssertionError as e:
         logger.error(f"Assertion error in ROC curve plot: {e}")
     except Exception as e:

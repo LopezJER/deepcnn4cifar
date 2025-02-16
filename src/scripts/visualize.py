@@ -653,6 +653,8 @@ def visualize_gradcam_multiple_layers(
         axes[0, col_idx + 1].set_title(f"Layer {layer_name}", fontsize=14)
 
     for row_idx in range(num_images):
+
+        logger.info(f'Processing {row_idx}/{num_images} sample image')
         sample_img_np = images[row_idx]  # Original image (numpy format)
         sample_tensor = tensors[row_idx].to(device)  # Model input
         sample_label = labels[row_idx]  # True class label

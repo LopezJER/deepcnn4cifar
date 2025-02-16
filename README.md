@@ -166,8 +166,7 @@ To run unit tests for data and model loading, simply run: <br>
 
 
 # References:
-*CIFAR-10 Dataset*: A dataset of 60,000 32x32 color images, 10 classes, 6,000 images per class. Link- https://www.cs.toronto.edu/~kriz/cifar.html 
-Classes: Airplane, Automobile, Bird, Cat, Deer, Dog, Frog, Horse, Ship, Truck
-*Deep Learning Framework*: Built using PyTorch/TensorFlow.
+*CIFAR-10 Dataset*: A dataset of 60,000 32x32 color images, 10 classes, 6,000 images per class. Link- https://www.cs.toronto.edu/~kriz/cifar.html <br>
+*Deep Learning Framework*: Built using PyTorch/TensorFlow. <br>
 Paper : Simonyan, K., & Zisserman, A. (2015). "Very Deep Convolutional Networks for Large-Scale Image Recognition". ICLR 2015. Link- https://arxiv.org/abs/1409.1556 
 

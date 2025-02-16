@@ -138,7 +138,7 @@ Track and compare model accuracy and loss metrics with detailed graphs.
    `python3 -m pip install --upgrade pip`
 
 3. **Install Project Dependencies**  
-   Install the required packages for the project:
+   Install the required packages for the project: <br>
    `pip install -e .`  
 
 5. **Install Development Dependencies (Optional)**  

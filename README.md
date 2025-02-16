@@ -4,22 +4,22 @@
 [![Paper](https://img.shields.io/badge/ICLR-2015-blue)](https://www.robots.ox.ac.uk/~vgg/publications/2015/Simonyan15/)  
 
 **deepcnn4cifar** 
-his repository implements deep convolutional neural networks for the CIFAR-10 dataset. The project demonstrates model training, evaluation, and visualization for image classification. The objective is to explore the performance of very deep networks and their impact on feature learning for computer vision tasks.
+This repository implements deep convolutional neural networks for the CIFAR-10 dataset. The project demonstrates model training, evaluation, and visualization for image classification. The objective is to explore the performance of very deep networks and their impact on feature learning for computer vision tasks.
 
 
-**Objectives & Hypothesis**
+**Objectives & Hypothesis:**
 
 - To implement deep convolutional neural networks (VGG architectures) for CIFAR-10.
 - To evaluate model accuracy and error rates.
-- To visualize feature activations and Grad-CAM outputs.
+- To visualize feature activations, provide layered visual representation of data, analyze model interpretability, and generate Grad-CAM outputs.
 - Hypothesis: Increasing model depth improves classification performance while maintaining computational efficiency.
 
-**Assumptions**
+**Assumptions:**
 The CIFAR-10 dataset consists of 60,000 32x32 images classified into 10 categories.
 Performance improvement depends on depth, regularization, and optimization techniques.
 Using smaller convolutional filters (3x3) enhances feature learning.
 
-**Project Structure:**
+# Project Structure:
 
 ```
 deepcnn4cifar/
@@ -46,7 +46,7 @@ deepcnn4cifar/
 
 ```
 
-**Key stages of the project**
+# Key stages of the project
 1. Data import: Load CIFAR-10 dataset and perfrom initial exploratory data analysis.
 
 _CIFAR 10 Data Examples:_
@@ -55,9 +55,9 @@ _CIFAR 10 Data Examples:_
 
 2. Data Processing:Normalize images, Convert data into PyTorch tensors and create data loaders. 
 
-3. Model Training: Implement VGG-11 and VGG-16 architectures,Train models using cross-entropy loss.Introduce learning rate scheduling and dropout for regularization.
+3. Model Training: Implement VGG-11 and VGG-16 architectures. Train models using cross-entropy loss. Include learning rate scheduling and dropout for regularization.
 
-_Data division:_
+_Data Division:_
 
 ![alt text](./assets/image-2.png)
 
@@ -67,7 +67,7 @@ _VGG Architecture:_
 
 4. Evalutation and Analysis: Compute accuracy, precision, recall, and F1-score, Visualize loss and accuracy trends, Generate confusion matrices.
 
- **Model Performance**
+ **Model Performance:**
 
 | Model  | Accuracy | Precision | Recall | F1 Score |
 |--------|----------|-----------|--------|----------|
@@ -83,24 +83,24 @@ _VGG Architecture:_
 - Analyze dataset splits and distributions.
 - Illustrate VGG network architecture.
 
-Our visualizations provide detailed insights into training and evaluation. Below is an example of a training accuracy vs. epochs chart:
+Our visualizations provide detailed insights into training and evaluation. Below is an example of a _training accuracy vs. epochs_ chart:_
 
 ![alt text](./assets/image.png)
 
-ROC Curve:
+_ROC Curve:_
 
 ![alt text](./assets/image-9.png)
 
-We also include confusion matrices for evaluating model performance:
+We also include _Confusion Matrices_ for evaluating model performance:
 
 ![alt text](./assets/image-1.png)
 
 
-Top 5 common mistakes made by the model (1 example per category):
+_Top 5 common mistakes made by the model (1 example per category):_
 
 ![alt text](./assets/image-3.png)
 
-And Grad-CAM: Visualizing Model Decisions
+And _Grad-CAM: Visualizing Model Decisions_
 Grad-CAM (Gradient-weighted Class Activation Mapping) reveals which image regions influenced a model’s prediction. The figure below applies Grad-CAM to CIFAR-10 images using VGG16, showing original images (left) and activation heatmaps from different layers (right). Warmer colors indicate higher importance.:
 
 ![alt text](./assets/image-4.png)
@@ -162,7 +162,7 @@ To run unit tests for data and model loading, simply run: <br>
    `pytest`<br>
 
 
-References:
+# References:
 *CIFAR-10 Dataset*: A dataset of 60,000 32x32 color images, 10 classes, 6,000 images per class. Link- https://www.cs.toronto.edu/~kriz/cifar.html 
 Classes: Airplane, Automobile, Bird, Cat, Deer, Dog, Frog, Horse, Ship, Truck
 *Deep Learning Framework*: Built using PyTorch/TensorFlow.

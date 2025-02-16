@@ -146,7 +146,7 @@ Track and compare model accuracy and loss metrics with detailed graphs.
    `pip install -e .[dev] #.'[dev]' for MacOS`  
 
 6. **Run Training & Evaluation Pipelne**  
-   To start training the model, run the following command:  
+   To run the train and evaluation pipeline, run the following command:  
    `python main.py`  
 
 7. **Visualize Results (with GradCam)**  

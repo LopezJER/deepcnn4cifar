@@ -1,12 +1,19 @@
+# Standard Library Imports
 import os
-import subprocess
 import shutil
-import torch
+import subprocess
+import argparse
+import logging
 import random
+
+# Third-Party Library Imports
+import torch
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
 from torchvision import datasets, transforms
+
+# Project-Specific Imports
 from src.utils.load_data import (
     calculate_dataset_statistics,
     get_cifar_dataloaders,
@@ -15,7 +22,6 @@ from src.utils.load_data import (
 from src.utils.load_model import load_model
 from src.core.gradcam import GradCAM
 from src.core.config import paths, model_setup, debug, class_names, latex_path
-import logging
 from src.scripts.evaluate import evaluate_model
 
 # Configure logger
@@ -396,6 +402,111 @@ def visualize_top_mistakes(cm, class_names, top_n=5):
         return []
 
 
+# Function to visualize grouped misclassified images
+def visualize_mistakes_images_grouped_with_row_titles(
+    true_labels,
+    predicted_labels,
+    test_dataset,
+    top_mistakes,
+    class_names,
+    max_images_per_category=5,
+):
+    """
+    Visualizes grouped misclassified images.
+    - Figure-wide title at the top
+    - Each row represents one misclassification type
+    - Row titles are on the left side of the images
+    """
+
+    assert isinstance(true_labels, np.ndarray), "true_labels must be a numpy array"
+    assert isinstance(
+        predicted_labels, np.ndarray
+    ), "predicted_labels must be a numpy array"
+    assert isinstance(
+        test_dataset, torch.utils.data.Dataset
+    ), "test_dataset must be a valid dataset object"
+    assert isinstance(top_mistakes, list), "top_mistakes must be a list"
+    assert isinstance(class_names, list), "class_names must be a list"
+    assert (
+        isinstance(max_images_per_category, int) and max_images_per_category > 0
+    ), "max_images_per_category must be a positive integer"
+
+    try:
+        num_rows = min(len(top_mistakes), 5)  # Always keep 5 rows max
+        misclassified_data = []
+
+        # Collect misclassified images
+        for true_class, predicted_class, _ in top_mistakes[:num_rows]:
+            true_class_idx = class_names.index(true_class)
+            predicted_class_idx = class_names.index(predicted_class)
+            images = []
+
+            for i in range(len(true_labels)):
+                if (
+                    true_labels[i] == true_class_idx
+                    and predicted_labels[i] == predicted_class_idx
+                ):
+                    images.append(test_dataset[i][0])  # Extract image
+                if len(images) == max_images_per_category:
+                    break
+
+            misclassified_data.append((true_class, predicted_class, images))
+
+        # Determine max columns dynamically
+        max_cols = (
+            max(len(images) for _, _, images in misclassified_data)
+            if misclassified_data
+            else 1
+        )
+
+        fig, axes = plt.subplots(num_rows, max_cols + 1, figsize=(12, 3 * num_rows))
+        fig.suptitle("Misclassified Images by Category", fontsize=18, fontweight="bold")
+
+        # Plot misclassified images
+        for row_idx, (true_class, predicted_class, images) in enumerate(
+            misclassified_data
+        ):
+            num_cols = len(
+                images
+            )  # Use actual number of misclassified images for this row
+
+            # Add text label as the first column in the row
+            axes[row_idx, 0].text(
+                0.5,
+                0.5,
+                f"True: {true_class}\nPredicted: {predicted_class}",
+                fontsize=12,
+                fontweight="bold",
+                ha="center",
+                va="center",
+            )
+            axes[row_idx, 0].axis("off")  # Hide the subplot axis
+
+            for col_idx in range(max_cols):
+                ax = axes[row_idx, col_idx + 1]  # Offset by 1 since col 0 is the label
+
+                if col_idx < num_cols:
+                    img = (
+                        images[col_idx].permute(1, 2, 0).cpu().numpy()
+                    )  # Convert PyTorch tensor to NumPy
+                    img = (img - img.min()) / (
+                        img.max() - img.min()
+                    )  # Normalize for display
+                    ax.imshow(img)
+                ax.axis("off")
+
+        plt.tight_layout(
+            rect=[0.1, 0, 1, 0.96]
+        )  # Adjust layout for the figure-wide title
+        output_path = os.path.join("outputs", "misclassified_images_grouped.png")
+        os.makedirs(os.path.dirname(output_path), exist_ok=True)
+        plt.savefig(output_path, dpi=300, bbox_inches="tight")
+        plt.show()
+
+    except Exception as e:
+        print(f"Error in visualize_mistakes_images_grouped_with_row_titles: {e}")
+
+
 # Function to denormalize CIFAR-10 images
 def denormalize(img, mean, std):
     """
@@ -525,7 +636,7 @@ def visualize_gradcam_multiple_layers(
         figsize=(3 * (num_layers + 1), 3 * num_images),
         gridspec_kw={
             "hspace": 0.6,
-            "wspace": 0.5,
+            "wspace": 0.7,
         },  # Increase space between rows and columns
     )
 
@@ -589,138 +700,266 @@ def visualize_gradcam_multiple_layers(
     plt.show()
 
 
-def run_visualization_pipeline():
-    """
-    Runs the visualization pipeline using the trained model and dataset.
-    Uses debug mode if enabled, loading a reduced dataset.
+#  Load CIFAR-10 dataset (once) based on debug mode
+if debug["on"]:
+    logger.info("Debug mode enabled: Using a reduced dataset for visualization.")
+    dataloaders = get_cifar_dataloaders(include_test=True, test_only=True)
+    _, _, test_loader = get_debug_dataloaders(test_loader=dataloaders.get("test"))
 
-    This function:
-    - Loads the best trained model from Hugging Face.
-    - Loads a smaller debug dataset (CIFAR-10) if debug mode is ON.
-    - Otherwise, loads the full CIFAR-10 test dataset.
-    - Runs visualization functions for dataset and transformations.
+    if test_loader is None:
+        logger.error(
+            "Error: test_loader is None after applying get_debug_dataloaders()!"
+        )
+        raise ValueError("test_loader is None. Check get_debug_dataloaders().")
+
+else:
+    logger.info("Debug mode OFF: Using full dataset.")
+    dataloaders = get_cifar_dataloaders(include_test=True, test_only=True)
+    test_loader = dataloaders["test"]
+
+if test_loader is None:
+    logger.error("Error: test_loader not found in dataloaders!")
+    raise ValueError("test_loader is None. Cannot proceed with visualization.")
+
+
+def run_visualization_pipeline(output_path, num_images):
+    """
+    Runs the full visualization pipeline.
+
+    Args:
+        output_path (str): Directory to save the output.
+        num_images (int): Number of images to use in visualizations.
     """
     try:
-        logger.info("Starting visualization pipeline...")
+        logger.info("Starting full visualization pipeline...")
 
-        # Load the best trained model from Hugging Face
+        # Load trained model
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         logger.info(f"Using device: {device}")
-        model = load_model()  # Load trained model from Hugging Face
-        model.to(device)  # Move model to GPU if available
+        model = load_model()  #  Calling without arguments
+        model.to(device)
 
-        # Check if Debug Mode is ON
-        if debug["on"]:
-            logger.info(
-                "Debug mode enabled: Using a smaller dataset for visualization."
-            )
-            dataloaders = get_cifar_dataloaders(include_test=True, test_only=True)
-
-            # Ensure test_loader exists before applying debug mode
-            if "test" not in dataloaders or dataloaders["test"] is None:
-                logger.error("Error: test_loader not found in dataloaders!")
-                raise ValueError(
-                    "test_loader is None. Cannot proceed with visualization."
-                )
-
-            # Apply Debug Mode to reduce dataset size
-            _, _, test_loader = get_debug_dataloaders(
-                test_loader=dataloaders.get("test")
-            )
-
-            # Ensure test_loader is still valid after debug mode
-            if test_loader is None:
-                logger.error(
-                    "Error: test_loader is None after applying get_debug_dataloaders()!"
-                )
-                raise ValueError("test_loader is None. Check get_debug_dataloaders().")
-
-        else:
-            # Load the full dataset when not in debug mode
-            logger.info("Debug mode OFF: Using full dataset.")
-            dataloaders = get_cifar_dataloaders(include_test=True, test_only=True)
-
-            if "test" not in dataloaders or dataloaders["test"] is None:
-                logger.error("Error: test_loader not found in dataloaders!")
-                raise ValueError(
-                    "test_loader is None. Cannot proceed with visualization."
-                )
-
-            test_loader = dataloaders["test"]
-
-        '''# Run visualization of CIFAR-10 images
-        logger.info("Running visualize_cifar10_with_labels()...")
+        # CIFAR-10 Dataset Visualization
         visualize_cifar10_with_labels(
-            class_names, num_examples=5, save_path="outputs/cifar10_visualization.png"
+            class_names, num_examples=num_images, save_path=output_path
         )
 
-        # Run visualization of image transformations
-        logger.info("Running visualize_image_transformations()...")
+        # Image Transformations
         visualize_image_transformations()
 
-        logger.info("Visualization pipeline completed successfully.")
-
-        # Run Model Evaluation to Get Predictions and Metrics
+        # Model Evaluation
         logger.info("Running model evaluation...")
         accuracy, avg_loss, precision, recall, f1, cm, ne, all_probs = evaluate_model(
             model, test_loader, device, num_classes=len(class_names)
         )
 
-        # Visualize Top Mistakes
-        logger.info("Running visualize_top_mistakes()...")
+        # Compute Top Mistakes
+        logger.info("Visualizing top mistakes...")
         top_mistakes = visualize_top_mistakes(cm, class_names, top_n=5)
 
-        # Visualize Misclassified Images
-        logger.info("Running visualize_mistakes_images_grouped_with_row_titles()...")
-        true_labels = np.array(ne.argmax(axis=1))  # Convert one-hot to label indices
+        # Compute True & Predicted Labels
+        true_labels = np.array(ne.argmax(axis=1))
         predicted_labels = np.array(all_probs.argmax(axis=1))
 
+        # Misclassified Images Visualization
         visualize_mistakes_images_grouped_with_row_titles(
             true_labels,
             predicted_labels,
             test_loader.dataset,
             top_mistakes,
             class_names,
-            max_images_per_category=5,
+            max_images_per_category=num_images,
         )
 
-        '''# Run activation visualization on a sample image
-        # Select a single image from the test dataset
-        image_index = 10  # Choose an index from the test set
-        image, label = test_loader.dataset[image_index]  # Extract image
-
-        # Run visualization
-        logger.info("Running visualize_activations...")
-
+        # Grad-CAM Visualization
         layer_names = [
-            "conv2d_block1.0",  # First convolution layer in block 1
-            "conv2d_block2.0",  # First convolution layer in block 2
-            "conv2d_block3.0",  # First convolution layer in block 3
-            "conv2d_block3.4",  # Third convolution layer in block 3 (if applicable)
-            "conv2d_block4.4",  # Third convolution layer in block 4 (if applicable)
-            "conv2d_block5.4",  # Third convolution layer in block 5 (if applicable)
+            "conv2d_block1.0",
+            "conv2d_block2.0",
+            "conv2d_block3.0",
+            "conv2d_block3.4",
+            "conv2d_block4.4",
+            "conv2d_block5.4",
         ]
-
-        # Run Grad-CAM visualization on 5 random images
         visualize_gradcam_multiple_layers(
             model,
             test_loader.dataset,
             class_names,
             layer_names,
-            output_path="outputs/gradcam_results.png",
+            output_path=paths["outputs_dir"] + "/gradcam_results.png",
+            num_images=num_images,
         )
-        logger.info("Visualization pipeline completed successfully.")
 
-        '''plot_data_split()
+        # Dataset Split Visualization
+        plot_data_split(output_path=paths["outputs_dir"] + "/data_split.png")
 
-        generate_vgg_visualization("vgg11")  # Generates VGG-11 PDF
-        generate_vgg_visualization("vgg16")  # Generates VGG-16 PDF'''
+        # VGG Model Architecture Visualization
+        generate_vgg_visualization("vgg11")
+        generate_vgg_visualization("vgg16")
+
+        logger.info("Full pipeline completed successfully!")
 
     except Exception as e:
         logger.error(f"Error in visualization pipeline: {e}")
         raise
 
 
-# Run when executing `visualize.py` directly
 if __name__ == "__main__":
-    run_visualization_pipeline()
+    parser = argparse.ArgumentParser(
+        description="Run different visualization functions"
+    )
+
+    # Argument for selecting a specific visualization function
+    parser.add_argument(
+        "--task",
+        type=str,
+        required=True,
+        choices=[
+            "full_pipeline",
+            "gradcam",
+            "cifar10_labels",
+            "image_transformations",
+            "top_mistakes",
+            "mistake_images",
+            "data_split",
+            "vgg_visualization",
+        ],
+        help="Select the visualization function to run",
+    )
+
+    parser.add_argument(
+        "--output_path",
+        type=str,
+        default=paths["outputs_dir"] + "/visualization.png",
+        help="Path to save visualization",
+    )
+    parser.add_argument(
+        "--num_images", type=int, default=5, help="Number of images to visualize"
+    )
+    parser.add_argument(
+        "--top_n", type=int, default=5, help="Top mistakes to visualize"
+    )
+    parser.add_argument(
+        "--model_type",
+        type=str,
+        default="vgg16",
+        help="VGG model type for --task vgg_visualization",
+    )
+
+    args = (
+        parser.parse_args()
+    )  # example usage: python -m src.scripts.visualize --task image_transformations
+
+    # Runs the full pipeline
+    if args.task == "full_pipeline":
+        # Check for model mismatch
+        if args.model_type != model_setup["arch"]:
+            logger.warning(
+                f"WARNING: Requested model '{args.model_type}' does not match the configured model '{model_setup['arch']}'. Using '{model_setup['arch']}' instead."
+            )
+
+        run_visualization_pipeline(args.output_path, args.num_images)
+
+    # Runs ONLY Grad-CAM
+    elif args.task == "gradcam":
+        logger.info("Running Grad-CAM visualization...")
+
+        # Check for model mismatch
+        if args.model_type != model_setup["arch"]:
+            logger.warning(
+                f"WARNING: Requested model '{args.model_type}' does not match the configured model '{model_setup['arch']}'. Using '{model_setup['arch']}' instead."
+            )
+
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model = load_model()  # Calling without arguments
+        model.to(device)
+
+        layer_names = [
+            "conv2d_block1.0",
+            "conv2d_block2.0",
+            "conv2d_block3.0",
+            "conv2d_block3.4",
+            "conv2d_block4.4",
+            "conv2d_block5.4",
+        ]
+        visualize_gradcam_multiple_layers(
+            model,
+            test_loader.dataset,
+            class_names,
+            layer_names,
+            args.output_path,
+            args.num_images,
+        )
+
+    # Runs ONLY CIFAR-10 Labels Visualization
+    elif args.task == "cifar10_labels":
+        visualize_cifar10_with_labels(
+            class_names, num_examples=args.num_images, save_path=args.output_path
+        )
+
+    # Runs ONLY Image Transformations Visualization
+    elif args.task == "image_transformations":
+        visualize_image_transformations()
+
+    #  Runs ONLY Top Mistakes Visualization
+    elif args.task == "top_mistakes":
+        logger.info("Running model evaluation to get confusion matrix...")
+        accuracy, avg_loss, precision, recall, f1, cm, _, _ = evaluate_model(
+            load_model(),  # Calling without arguments
+            test_loader,
+            torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+            num_classes=len(class_names),
+        )
+        visualize_top_mistakes(cm, class_names, top_n=args.top_n)
+
+    # Runs ONLY Misclassified Images Visualization
+    elif args.task == "mistake_images":
+        logger.info("Running model evaluation to get predictions...")
+
+        # Load model and dataset
+        model = load_model()
+        model.to(torch.device("cuda" if torch.cuda.is_available() else "cpu"))
+
+        accuracy, avg_loss, precision, recall, f1, cm, ne, all_probs = evaluate_model(
+            model,
+            test_loader,
+            torch.device("cuda" if torch.cuda.is_available() else "cpu"),
+            num_classes=len(class_names),
+        )
+
+        # Compute True & Predicted Labels
+        true_labels = np.array(ne.argmax(axis=1))
+        predicted_labels = np.array(all_probs.argmax(axis=1))
+
+        # Identify the top mistakes without visualization
+        mistakes = np.where(true_labels != predicted_labels)[0]
+
+        if len(mistakes) == 0:
+            logger.warning("No misclassified images found!")
+        else:
+            # Extract top N mistakes for visualization
+            selected_mistakes = mistakes[: args.num_images]  # Take first N mistakes
+            top_mistakes = [
+                (class_names[true_labels[i]], class_names[predicted_labels[i]], i)
+                for i in selected_mistakes
+            ]
+
+            # Run misclassified images visualization ONLY
+            visualize_mistakes_images_grouped_with_row_titles(
+                true_labels,
+                predicted_labels,
+                test_loader.dataset,
+                top_mistakes,
+                class_names,
+                max_images_per_category=args.num_images,
+            )
+
+    # Runs ONLY Data Split Visualization
+    elif args.task == "data_split":
+        plot_data_split(output_path=args.output_path)
+
+    # Runs ONLY VGG Model Architecture Visualization
+    elif args.task == "vgg_visualization":
+        generate_vgg_visualization(args.model_type)
+
+    else:
+        print("Error: Invalid task selected.")

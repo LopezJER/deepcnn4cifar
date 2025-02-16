@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)  
 [![Paper](https://img.shields.io/badge/ICLR-2015-blue)](https://www.robots.ox.ac.uk/~vgg/publications/2015/Simonyan15/)  
 
-🌟 deepcnn4cifar 🌟
+**deepcnn4cifar** 
 This repository implementing deep convolutional neural networks for the CIFAR-10 dataset. This project demonstrates training, evaluation, and visualization of deep learning models for image classification. Dive in to explore the world of computer vision with powerful tools and stunning visualizations.
 
 _CIFAR 10 Data Examples:_
@@ -12,7 +12,7 @@ _CIFAR 10 Data Examples:_
 
 _Data division:_
 
-![alt text](./assets/image-7.png)
+![alt text](data_split.png)
 
 _VGG Architecture:_
 
@@ -44,7 +44,7 @@ deepcnn4cifar/
 ├── README.md                  # This file
 
 ```
-🚀 **Model Performance**
+ **Model Performance**
 
 | Model  | Accuracy | Precision | Recall | F1 Score |
 |--------|----------|-----------|--------|----------|
@@ -52,9 +52,9 @@ deepcnn4cifar/
 | VGG16  | 84.74%   | 84.76%    | 84.74% | 84.73%   |
 
 
-🧩 **Features**
+ **Features**
 
-🎨 Visualizations
+Visualizations
 Our visualizations provide detailed insights into training and evaluation. Below is an example of a training accuracy vs. epochs chart:
 
 ![alt text](./assets/image.png)
@@ -67,13 +67,14 @@ We also include confusion matrices for evaluating model performance:
 
 ![alt text](./assets/image-1.png)
 
-Top 5 common mistaed made by the model:
+Top 5 common mistakes made by the model (1 example per category):
 
 ![alt text](./assets/image-8.png)
 
-And features map showing the filters activation for an imput image after is goes through a specified layer:
+And Grad-CAM: Visualizing Model Decisions
+Grad-CAM (Gradient-weighted Class Activation Mapping) reveals which image regions influenced a model’s prediction. The figure below applies Grad-CAM to CIFAR-10 images using VGG16, showing original images (left) and activation heatmaps from different layers (right). Warmer colors indicate higher importance.:
 
-![alt text](./assets/image-10.jpg)
+![alt text](gradcam_results.png)
 
 You can easily adjust the depth and parameters of the vggs in src/core/model.py.
 Utilize scripts/visualize.py to generate interactive charts and matrices.
@@ -113,7 +114,7 @@ Track and compare model accuracy and loss metrics with detailed graphs.
 
 7. **Visualize Results (with GradCam)**  
    To visualize results using GradCam on an image, run:  
-   `python -m src.scripts.visualize.py --image.png`
+   `python -m src.scripts.visualize.py --task gradcam --num_images 1 --output_path outputs/gradcam_results.png`
 
 <br>
 Note: All relevant settings and hyperparams can be modified under src/core/config.py

@@ -4,32 +4,33 @@
 [![Paper](https://img.shields.io/badge/ICLR-2015-blue)](https://www.robots.ox.ac.uk/~vgg/publications/2015/Simonyan15/)  
 
 **deepcnn4cifar** 
-This repository implementing deep convolutional neural networks for the CIFAR-10 dataset. This project demonstrates training, evaluation, and visualization of deep learning models for image classification. Dive in to explore the world of computer vision with powerful tools and stunning visualizations.
+his repository implements deep convolutional neural networks for the CIFAR-10 dataset. The project demonstrates model training, evaluation, and visualization for image classification. The objective is to explore the performance of very deep networks and their impact on feature learning for computer vision tasks.
 
-_CIFAR 10 Data Examples:_
 
-![alt text](./assets/image-5.png)
+**Objectives & Hypothesis**
 
-_Data division:_
+- To implement deep convolutional neural networks (VGG architectures) for CIFAR-10.
+- To evaluate model accuracy and error rates.
+- To visualize feature activations and Grad-CAM outputs.
+- Hypothesis: Increasing model depth improves classification performance while maintaining computational efficiency.
 
-![alt text](./assets/image-2.png)
-
-_VGG Architecture:_
-
-![alt text](./assets/image-6.png)
+**Assumptions**
+The CIFAR-10 dataset consists of 60,000 32x32 images classified into 10 categories.
+Performance improvement depends on depth, regularization, and optimization techniques.
+Using smaller convolutional filters (3x3) enhances feature learning.
 
 **Project Structure:**
 
 ```
 deepcnn4cifar/
-├── assets/
+├── assets/                    # Resources for visualization
 │   ├── PlotNeuralNet/         # LaTeX resources for neural network visualization
 │   ├── vgg11_template.tex     # LaTeX template for VGG11 architecture
 │   ├── vgg16_template.tex     # LaTeX template for VGG16 architecture
 ├── src/
 │   ├── core/                  # Core model and configuration files
-│   │   ├── config.py          # Configuration settings
-│   │   ├── model.py           # Model definitions
+│   │   ├── config.py          # Configuration of model hyperparameters and settings
+│   │   ├── model.py           # Model architecture definitions
 │   │   ├── gradcam.py         # Implementation of Grad-CAM
 │   ├── scripts/               # Main scripts for training, evaluation, and visualization
 │   │   ├── train.py           # Training script
@@ -44,6 +45,28 @@ deepcnn4cifar/
 ├── README.md                  # This file
 
 ```
+
+**Key stages of the project**
+1. Data import: Load CIFAR-10 dataset and perfrom initial exploratory data analysis.
+
+_CIFAR 10 Data Examples:_
+
+![alt text](./assets/image-5.png)
+
+2. Data Processing:Normalize images, Convert data into PyTorch tensors and create data loaders. 
+
+3. Model Training: Implement VGG-11 and VGG-16 architectures,Train models using cross-entropy loss.Introduce learning rate scheduling and dropout for regularization.
+
+_Data division:_
+
+![alt text](./assets/image-2.png)
+
+_VGG Architecture:_
+
+![alt text](./assets/image-6.png)
+
+4. Evalutation and Analysis: Compute accuracy, precision, recall, and F1-score, Visualize loss and accuracy trends, Generate confusion matrices.
+
  **Model Performance**
 
 | Model  | Accuracy | Precision | Recall | F1 Score |
@@ -52,9 +75,14 @@ deepcnn4cifar/
 | VGG16  | 84.74%   | 84.76%    | 84.74% | 84.73%   |
 
 
- **Features**
+5. Visualization:
+- Visualize CIFAR-10 dataset images with class labels.
+- Show image transformations before and after processing.
+- Display top-5 model prediction errors.
+- Generate Grad-CAM heatmaps for model interpretation.
+- Analyze dataset splits and distributions.
+- Illustrate VGG network architecture.
 
-Visualizations
 Our visualizations provide detailed insights into training and evaluation. Below is an example of a training accuracy vs. epochs chart:
 
 ![alt text](./assets/image.png)
@@ -67,6 +95,7 @@ We also include confusion matrices for evaluating model performance:
 
 ![alt text](./assets/image-1.png)
 
+
 Top 5 common mistakes made by the model (1 example per category):
 
 ![alt text](./assets/image-3.png)
@@ -75,6 +104,14 @@ And Grad-CAM: Visualizing Model Decisions
 Grad-CAM (Gradient-weighted Class Activation Mapping) reveals which image regions influenced a model’s prediction. The figure below applies Grad-CAM to CIFAR-10 images using VGG16, showing original images (left) and activation heatmaps from different layers (right). Warmer colors indicate higher importance.:
 
 ![alt text](./assets/image-4.png)
+
+
+**Important Definitions & Key Parameters**
+
+- Learning Rate: Controls the step size during weight updates.
+- Batch Size: Number of training samples per iteration.
+- Dropout Rate: Percentage of units dropped during training for regularization.
+- Epochs: Number of complete passes through the training dataset.
 
 You can easily adjust the depth and parameters of the vggs in src/core/model.py.
 Utilize scripts/visualize.py to generate interactive charts and matrices.
@@ -126,6 +163,8 @@ To run unit tests for data and model loading, simply run: <br>
 
 
 References:
-CIFAR-10 Dataset: A dataset of 60,000 32x32 color images in 10 classes.
-Deep Learning Framework: Built using PyTorch/TensorFlow.
-Paper : "Very Deep Convolutional Networks for Large-Scale Image Recognition" (Simonyan & Zisserman, 2015).
+*CIFAR-10 Dataset*: A dataset of 60,000 32x32 color images, 10 classes, 6,000 images per class. Link- https://www.cs.toronto.edu/~kriz/cifar.html 
+Classes: Airplane, Automobile, Bird, Cat, Deer, Dog, Frog, Horse, Ship, Truck
+*Deep Learning Framework*: Built using PyTorch/TensorFlow.
+Paper : Simonyan, K., & Zisserman, A. (2015). "Very Deep Convolutional Networks for Large-Scale Image Recognition". ICLR 2015. Link- https://arxiv.org/abs/1409.1556 
+

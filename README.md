@@ -143,7 +143,7 @@ Track and compare model accuracy and loss metrics with detailed graphs.
 
 5. **Install Development Dependencies (Optional)**  
    Install additional packages for linting, testing, and other developer tools:  
-   `pip install -e .[dev]`  
+   `pip install -e .[dev] #.'[dev]' for MacOS`  
 
 6. **Run Training & Evaluation Pipelne**  
    To start training the model, run the following command:  
